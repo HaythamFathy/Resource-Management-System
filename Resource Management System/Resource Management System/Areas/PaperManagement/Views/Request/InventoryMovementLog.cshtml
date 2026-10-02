@@ -1,0 +1,374 @@
+@model List<Resource_Management_System.Models.InventoryMovementRow>
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "سجل حركة المخزون";
+    var contracts = ViewBag.Contracts as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var paperTypes = ViewBag.PaperTypes as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    int? selectedContractId = ViewBag.SelectedContractId is int c ? c : null;
+    int? selectedPaperTypeId = ViewBag.SelectedPaperTypeId is int p ? p : null;
+    string selectedMovementType = ViewBag.SelectedMovementType as string ?? string.Empty;
+    DateTime? fromDate = ViewBag.FromDate is DateTime f ? f : null;
+    DateTime? toDate = ViewBag.ToDate is DateTime t ? t : null;
+    long totalMovementCount = ViewBag.TotalMovementCount is int count ? count : 0;
+    long totalReceiptQuantity = ViewBag.TotalReceiptQuantity is long receiptTotal ? receiptTotal : 0;
+    long totalIssuedQuantity = ViewBag.TotalIssuedQuantity is long issueTotal ? issueTotal : 0;
+    string Number(long value) => value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+    string Unit(long value) => value == 1 ? "رزمة" : "رزم";
+    var hasFilters = selectedContractId.HasValue || selectedPaperTypeId.HasValue || !string.IsNullOrWhiteSpace(selectedMovementType) || fromDate.HasValue || toDate.HasValue;
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr@4.6.13/dist/l10n/ar.js"></script>
+
+<style>
+    @@media print {
+        @@page { size:A4 portrait; margin:10mm; }
+        body * {visibility:hidden!important;}
+        .movement-print-area, .movement-print-area * {visibility:visible!important;}
+        .movement-print-area {position:absolute!important;top:0!important;right:0!important;left:0!important;width:100%!important;border:none!important;box-shadow:none!important;overflow:visible!important;}
+        .movement-print-area .overflow-x-auto {overflow:visible!important;}
+        .movement-print-area .movement-print-table {width:100%!important;min-width:0!important;table-layout:fixed!important;font-size:9px!important;}
+        .movement-print-area th,.movement-print-area td {font-size:9px!important;padding:4px 3px!important;line-height:1.45!important;overflow-wrap:anywhere!important;white-space:normal!important;}
+        .movement-print-area .movement-actions {display:none!important;}
+        .movement-print-area .movement-print-title {display:block!important;text-align:center;margin:0 0 12px;padding-bottom:9px;border-bottom:1px solid #cbd5e1;}
+        .movement-print-area .movement-print-title h1 {font-size:19px;font-weight:900;color:#34435e;}
+        .movement-print-area .movement-print-title p {font-size:10px;margin-top:4px;color:#64748b;}
+        .movement-print-table thead {display:table-header-group;}
+        .movement-print-table tr {break-inside:avoid;}
+        .movement-print-table .rounded-full {border-radius:0!important;}
+        .movement-print-table .w-9 {display:none!important;}
+    }
+</style>
+<style>
+    .inv-unified-header {background:#34435e!important;border:1px solid #34435e!important;border-radius:20px 20px 0 0!important;box-shadow:none!important;}
+    .inv-unified-header h2 {color:white!important;font-size:clamp(21px,2.2vw,27px)!important;line-height:1.4;}
+    .inv-unified-header .bi, .inv-unified-header .material-symbols-outlined {color:inherit;}
+    .inv-unified-header > div:first-child > div:first-child > div:first-child {color:white;}
+    .inv-unified-nav {border:1px solid #dbe2ed!important;background:#fff!important;border-radius:0 0 20px 20px!important;padding:11px 14px!important;margin-bottom:18px!important;box-shadow:0 2px 5px #22304708;}
+    .inv-unified-nav > div {display:flex!important;flex-wrap:wrap!important;gap:9px!important;align-items:center!important;justify-content:flex-start!important;}
+    .inv-unified-nav a {display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;min-height:41px!important;padding:10px 14px!important;border-radius:12px!important;border:1px solid #d5dfeb;white-space:nowrap;font-size:13px!important;font-weight:850!important;}
+    .inv-unified-header .inv-unified-nav {margin:0!important;}
+    .inv-unified-header + .inv-unified-nav {margin-top:0!important;}
+    @@media(max-width:600px){.inv-unified-nav a{font-size:12px!important;padding:9px 10px!important;}}
+</style>
+<div class="space-y-6">
+    <section class="bg-surface-white rounded-2xl border border-border-light shadow-sm overflow-hidden">
+        <div class="px-5 py-4 bg-[#34435E] text-white flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 inv-unified-header">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-2xl">monitoring</span>
+                    <h2 class="text-xl sm:text-2xl font-black">سجل حركة المخزون</h2>
+                </div>
+            </div>
+
+
+        </div>
+
+        <div class="inv-unified-nav p-3 border-b border-border-light bg-neutral-50/70">
+            <div class="flex flex-wrap gap-2 text-xs font-black">
+                <a href="/PaperManagement/Request/Inventory" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-box-seam"></i>
+                    المخزن
+                </a>
+                <a href="/PaperManagement/Request/InventoryContracts" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-file-earmark-text"></i>
+                    العقود
+                </a>
+                <a href="/PaperManagement/Request/InventoryMovementLog" class="inline-flex items-center gap-2 rounded-xl bg-[#34435E] text-white px-4 py-2.5 shadow-sm">
+                    <i class="bi bi-list-ul"></i>
+                    سجل حركة المخزون
+                </a>
+                <a href="/PaperManagement/Request/ReceiptLog" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-clock-history"></i>
+                    سجل الاستلام
+                </a>
+                @* <a href="/PaperManagement/Request/InventoryYearlyLedger" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-calendar2-range"></i>
+                    التقرير السنوي
+                </a> *@
+            </div>
+        </div>
+
+        <div class="p-5 border-b border-border-light bg-white">
+            <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                <div class="w-full lg:max-w-3xl">
+                    <h3 class="font-black text-on-surface">خيارات العرض</h3>
+                </div>
+                @if (hasFilters)
+                {
+                    <span class="inline-flex items-center gap-1 rounded-full bg-primary/5 border border-primary/10 text-primary px-3 py-1.5 text-[11px] font-black self-start lg:self-auto">
+                        <span class="material-symbols-outlined text-sm">filter_alt</span>
+                        توجد فلاتر مفعّلة
+                    </span>
+                }
+            </div>
+        </div>
+
+        <div class="p-5 bg-neutral-50/70">
+            <form id="movementFilterForm" method="get" action="/PaperManagement/Request/InventoryMovementLog"
+                  data-instant-filter="true" data-auto-filter="true"
+                  class="rounded-2xl border border-border-light bg-white p-4 lg:p-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.15fr_1fr_1fr_1fr_1fr_auto] gap-3 items-end">
+                    <div>
+                        <label class="block text-xs font-black text-neutral-700 mb-1.5">العقد</label>
+                        <select name="contractId" class="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2.5 text-sm font-black text-[#34435E] outline-none focus:border-primary focus:ring-2 focus:ring-primary/10">
+                            <option value="">كل العقود + خارج العقد</option>
+                            @foreach (var item in contracts)
+                            {
+                                if (selectedContractId?.ToString() == item.Value)
+                                {
+                                    <option value="@item.Value" selected>@item.Text</option>
+                                }
+                                else
+                                {
+                                    <option value="@item.Value">@item.Text</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-black text-neutral-700 mb-1.5">نوع الورق</label>
+                        <select name="paperTypeId" class="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2.5 text-sm font-black text-[#34435E] outline-none focus:border-primary focus:ring-2 focus:ring-primary/10">
+                            <option value="">كل الأنواع</option>
+                            @foreach (var item in paperTypes)
+                            {
+                                if (selectedPaperTypeId?.ToString() == item.Value)
+                                {
+                                    <option value="@item.Value" selected>@item.Text</option>
+                                }
+                                else
+                                {
+                                    <option value="@item.Value">@item.Text</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-black text-neutral-700 mb-1.5">نوع الحركة</label>
+                        <select name="movementType" class="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2.5 text-sm font-black text-[#34435E] outline-none focus:border-primary focus:ring-2 focus:ring-primary/10">
+                            <option value="">كل الحركات</option>
+                            @if (selectedMovementType == "Receipt")
+                            {
+                                <option value="Receipt" selected>استلام</option>
+                            }
+                            else
+                            {
+                                <option value="Receipt">استلام</option>
+                            }
+                            @if (selectedMovementType == "Issue")
+                            {
+                                <option value="Issue" selected>صرف</option>
+                            }
+                            else
+                            {
+                                <option value="Issue">صرف</option>
+                            }
+                            @if (selectedMovementType == "ContractStarted")
+                            {
+                                <option value="ContractStarted" selected>بدء عقد</option>
+                            }
+                            else
+                            {
+                                <option value="ContractStarted">بدء عقد</option>
+                            }
+                            @if (selectedMovementType == "ContractClosed")
+                            {
+                                <option value="ContractClosed" selected>إنهاء عقد</option>
+                            }
+                            else
+                            {
+                                <option value="ContractClosed">إنهاء عقد</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-black text-neutral-700 mb-1.5">من تاريخ</label>
+                        <input id="movementFromDate" type="text" name="fromDate" value="@(fromDate?.ToString("yyyy-MM-dd") ?? "")" readonly
+                               class="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2.5 text-sm font-black text-[#34435E] outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 cursor-pointer" placeholder="كل المدة" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-black text-neutral-700 mb-1.5">إلى تاريخ</label>
+                        <input id="movementToDate" type="text" name="toDate" value="@(toDate?.ToString("yyyy-MM-dd") ?? "")" readonly
+                               class="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2.5 text-sm font-black text-[#34435E] outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 cursor-pointer" placeholder="حتى اليوم" />
+                    </div>
+
+                    <a href="/PaperManagement/Request/InventoryMovementLog" data-instant-filter-reset="true"
+                       class="h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 px-4 text-xs font-black whitespace-nowrap transition-colors">
+                        <span class="material-symbols-outlined text-base">restart_alt</span>
+                        إعادة ضبط
+                    </a>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div class="bg-white rounded-2xl border border-neutral-200 shadow-sm p-5 relative overflow-hidden">
+            <div class="absolute -left-6 -top-6 w-20 h-20 rounded-full bg-slate-100"></div>
+            <p class="text-xs font-black text-neutral-500 relative">عدد العمليات</p>
+            <p class="text-3xl font-black text-[#34435E] mt-2 relative">@Number(totalMovementCount)</p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-emerald-200 shadow-sm p-5 relative overflow-hidden">
+            <div class="absolute -left-6 -top-6 w-20 h-20 rounded-full bg-emerald-50"></div>
+            <p class="text-xs font-black text-emerald-700 relative">إجمالي الاستلام</p>
+            <p class="text-3xl font-black text-emerald-700 mt-2 relative">@Number(totalReceiptQuantity)</p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-amber-200 shadow-sm p-5 relative overflow-hidden">
+            <div class="absolute -left-6 -top-6 w-20 h-20 rounded-full bg-amber-50"></div>
+            <p class="text-xs font-black text-amber-700 relative">إجمالي الصرف</p>
+            <p class="text-3xl font-black text-amber-700 mt-2 relative">@Number(totalIssuedQuantity)</p>
+        </div>
+    </div>
+
+    <section class="bg-surface-white rounded-2xl border border-border-light shadow-sm overflow-hidden movement-print-area">
+        <div class="hidden movement-print-title"><h1>تقرير حركة المخزون</h1><p>تاريخ طباعة التقرير: @DateTime.UtcNow.ToEgyptTime().ToString("yyyy/MM/dd HH:mm")</p></div>
+        <div class="px-5 py-4 border-b border-border-light flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+                <h3 class="text-lg font-black text-on-surface">تفاصيل حركة المخزون</h3>
+            </div>
+            <div class="movement-actions flex flex-wrap items-center gap-2">
+                <a asp-area="PaperManagement" asp-controller="Request" asp-action="ExportInventoryMovementLogToExcel"
+                   asp-route-contractId="@selectedContractId"
+                   asp-route-paperTypeId="@selectedPaperTypeId"
+                   asp-route-movementType="@selectedMovementType"
+                   asp-route-fromDate="@(fromDate?.ToString("yyyy-MM-dd"))"
+                   asp-route-toDate="@(toDate?.ToString("yyyy-MM-dd"))"
+                   class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-sm font-black transition-colors">
+                    <i class="bi bi-file-earmark-excel"></i>
+                    تصدير Excel
+                </a>
+                <button type="button" onclick="window.print()" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white text-[#34435E] hover:bg-slate-50 px-4 py-2.5 text-sm font-black transition-colors"><i class="bi bi-printer"></i> طباعة التقرير</button>
+                <span class="inline-flex items-center gap-1 rounded-full bg-neutral-100 text-neutral-700 px-3.5 py-1.5 text-xs font-black">
+                    @Model.Count حركة
+                </span>
+            </div>
+        </div>
+
+        @if (Model.Any())
+        {
+            <div class="overflow-x-auto">
+                <table class="w-full text-right text-base min-w-[800px] movement-print-table">
+                    <thead class="bg-slate-800 text-white text-sm lg:text-base">
+                        <tr>
+                            <th class="px-4 py-4 font-black">التاريخ</th>
+                            <th class="px-4 py-4 font-black">الحركة</th>
+                            <th class="px-4 py-4 font-black">نوع الورق</th>
+                            <th class="px-4 py-4 font-black text-center">الكمية</th>
+                            <th class="px-4 py-4 font-black">العقد</th>
+                            <th class="px-4 py-4 font-black">المرجع</th>
+                            <th class="px-4 py-4 font-black">بواسطة</th>
+                                                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100">
+                        @foreach (var item in Model)
+                        {
+                            var movementLabel = item.MovementType switch
+                            {
+                                "Receipt" => "استلام",
+                                "Issue" => "صرف",
+                                "ContractStarted" => "بدء عقد",
+                                "ContractClosed" => "إنهاء عقد",
+                                _ => item.MovementType
+                            };
+                            var badgeClass = item.MovementType switch
+                            {
+                                "Receipt" => "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                "Issue" => "bg-amber-50 text-amber-700 border-amber-200",
+                                "ContractStarted" => "bg-sky-50 text-sky-700 border-sky-200",
+                                "ContractClosed" => "bg-violet-50 text-violet-700 border-violet-200",
+                                _ => "bg-neutral-50 text-neutral-700 border-neutral-200"
+                            };
+                            var quantityText = item.QuantityChange.HasValue
+                                ? (item.QuantityChange > 0 ? $"+{item.QuantityChange.Value:N0}" : item.QuantityChange.Value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture))
+                                : "—";
+                            var quantityClass = item.QuantityChange > 0
+                                ? "text-emerald-700"
+                                : item.QuantityChange < 0
+                                    ? "text-red-700"
+                                    : "text-slate-400";
+                            <tr class="hover:bg-slate-50/80 transition-colors">
+                                <td class="px-4 py-4">
+                                    <div class="font-black text-[#34435E] text-sm lg:text-base" dir="ltr">@item.EventDate.ToEgyptTime().ToString("yyyy/MM/dd")</div>
+                                    <div class="text-xs text-neutral-400 font-bold" dir="ltr">@item.EventDate.ToEgyptTime().ToString("HH:mm")</div>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs lg:text-sm font-black @badgeClass">@movementLabel</span>
+                                </td>
+                                <td class="px-4 py-4">
+                                    @if (!string.IsNullOrWhiteSpace(item.PaperTypeName))
+                                    {
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-sm">@item.PaperTypeName</span>
+                                            <span class="font-black text-on-surface text-sm lg:text-base">ورق @item.PaperTypeName</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-neutral-400 font-bold text-sm">—</span>
+                                    }
+                                </td>
+                                <td class="px-4 py-4 text-center">
+                                    <span class="font-black text-base lg:text-lg @quantityClass" dir="ltr">@quantityText</span>
+                                </td>
+                                <td class="px-4 py-4 text-sm font-bold text-slate-700">@item.ContractDisplay</td>
+                                <td class="px-4 py-4 text-sm text-slate-600">
+                                    @if (item.ReferenceType == "Request")
+                                    {
+                                        <span class="inline-flex items-center rounded-full bg-slate-100 text-slate-800 px-3 py-1 text-xs font-black">طلب #@item.ReferenceID</span>
+                                    }
+                                    else if (item.ReferenceType == "InventoryReceipt")
+                                    {
+                                        <span class="inline-flex items-center rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100 px-3 py-1 text-xs font-black">استلام #@item.ReferenceID</span>
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(item.ReferenceID))
+                                    {
+                                        <span class="inline-flex items-center rounded-full bg-sky-50 text-sky-800 border border-sky-100 px-3 py-1 text-xs font-black">عقد #@item.ReferenceID</span>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </td>
+                                <td class="px-4 py-4 text-sm font-black text-on-surface">@item.PerformedByName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="py-12 text-center text-neutral-500">
+                <span class="material-symbols-outlined text-4xl text-neutral-300">inventory_2</span>
+                <p class="text-sm font-bold mt-2">لا توجد حركة مخزون مطابقة للفلاتر الحالية.</p>
+            </div>
+        }
+    </section>
+</div>
+
+<script>
+    (function () {
+        if (typeof flatpickr === 'undefined') return;
+        var form = document.getElementById('movementFilterForm');
+        var config = {
+            locale: 'ar',
+            dateFormat: 'Y-m-d',
+            disableMobile: true,
+            allowInput: false,
+            onClose: function (selectedDates) {
+                if (selectedDates && selectedDates.length && typeof paperScheduleInstantFilter === 'function') {
+                    paperScheduleInstantFilter(form, 120);
+                }
+            }
+        };
+        flatpickr('#movementFromDate', config);
+        flatpickr('#movementToDate', config);
+    })();
+</script>

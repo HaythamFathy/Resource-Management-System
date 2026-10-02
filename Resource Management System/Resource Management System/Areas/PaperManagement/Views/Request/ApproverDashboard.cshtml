@@ -1,0 +1,397 @@
+@model Resource_Management_System.Models.ApproverDashboardViewModel
+@{
+    ViewData["Title"] = "لوحة متابعة التصديق";
+    var userName = User.Identity?.Name ?? "المعتمد";
+    var stageNumber = Model.ApprovalStage > 0 ? Model.ApprovalStage.ToString() : "-";
+    var a4Inventory = Model.InventoryList?.FirstOrDefault(x => string.Equals(x.PaperTypeName, "A4", System.StringComparison.OrdinalIgnoreCase));
+    var a3Inventory = Model.InventoryList?.FirstOrDefault(x => string.Equals(x.PaperTypeName, "A3", System.StringComparison.OrdinalIgnoreCase));
+    var a4Stock = a4Inventory?.CurrentStock ?? 0;
+    var a3Stock = a3Inventory?.CurrentStock ?? 0;
+}
+
+<style>
+    .approver-stock-choice {
+        min-height: 2rem;
+        border: 1px solid #bae6fd;
+        border-radius: .6rem;
+        background: #fff;
+        color: #075985;
+        font-weight: 900;
+        font-size: .72rem;
+        line-height: 1;
+        transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+
+        .approver-stock-choice:hover {
+            background: #f0f9ff;
+            border-color: #7dd3fc;
+        }
+
+        .approver-stock-choice[aria-pressed="true"] {
+            background: #0369a1;
+            border-color: #0369a1;
+            color: #fff;
+            box-shadow: 0 3px 10px rgba(3, 105, 161, .18);
+        }
+
+        .approver-stock-choice:focus-visible {
+            outline: 3px solid rgba(14, 165, 233, .28);
+            outline-offset: 2px;
+        }
+</style>
+
+<div class="space-y-5">
+    @if (Model.InventoryList != null && Model.InventoryList.Any(x => x.IsLowStock))
+    {
+        <div role="alert" class="bg-red-50 border border-red-300 text-red-900 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <i class="bi bi-exclamation-triangle-fill text-xl"></i>
+                <div>
+                    <strong>تنبيه مخزون:</strong>
+                    @string.Join("، ", Model.InventoryList.Where(x => x.IsLowStock).Select(x => $"{x.PaperTypeName} ({x.CurrentStock})"))
+                </div>
+            </div>
+            <span class="text-xs font-bold">للعلم والمتابعة</span>
+        </div>
+    }
+
+    @if (ViewBag.ErrorMessage != null)
+    {
+        <div class="bg-red-50 border border-red-200 text-red-800 px-5 py-4 rounded-xl flex items-center gap-3">
+            <i class="bi bi-exclamation-triangle-fill text-lg"></i>
+            <span>@ViewBag.ErrorMessage</span>
+        </div>
+    }
+
+    <!-- Approver command header: personal action first -->
+    <section class="overflow-hidden rounded-2xl border border-[#34435E]/20 bg-white shadow-sm">
+        <div class="bg-[#34435E] px-5 py-5 lg:px-6 text-white relative overflow-hidden">
+            <div class="absolute -left-16 -top-20 w-56 h-56 rounded-full bg-white/5"></div>
+            <div class="absolute left-40 -bottom-20 w-40 h-40 rounded-full bg-[#58a4b0]/20"></div>
+
+            <div class="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                        <h1 class="text-xl lg:text-2xl font-black">لوحة متابعة التصديق</h1>
+                        @if (Model.ApprovalStage > 0)
+                        {
+                            <span class="rounded-full bg-white/10 border border-white/15 px-2.5 py-1 text-[11px] font-extrabold">مرحلة @stageNumber</span>
+                        }
+                    </div>
+                    <p class="text-sm text-white/80">@Model.ApprovalStageName</p>
+                </div>
+
+                <a href="@Url.Action("Pending", "Request", new { area = "PaperManagement" })"
+                   class="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-[#34435E] hover:bg-neutral-100 px-5 py-3 text-sm font-black shadow-sm min-w-[190px]">
+                    <span class="material-symbols-outlined text-xl">fact_check</span>
+                    @if (Model.PendingMyApprovalCount > 0)
+                    {
+                        <span>مراجعة @Model.PendingMyApprovalCount طلب</span>
+                    }
+                    else
+                    {
+                        <span>فتح سجل الطلبات</span>
+                    }
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Personal cards: these numbers belong to the signed-in approver -->
+    <section class="space-y-3">
+        <div class="flex items-center justify-between gap-3">
+            <div>
+                <h2 class="text-base font-black text-on-surface flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">person_check</span>
+                    مهام الاعتماد
+                </h2>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <a href="@Url.Action("Pending", "Request", new { area = "PaperManagement" })"
+               class="group bg-white p-5 rounded-xl border-2 @(Model.PendingMyApprovalCount > 0 ? "border-amber-300" : "border-border-light") shadow-sm hover:shadow-md transition-all flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-xs font-bold text-amber-900">تحتاج قرارك الآن</p>
+                    <p class="text-3xl font-black text-amber-600 mt-1">@Model.PendingMyApprovalCount</p>
+                    <p class="text-xs text-neutral-500 mt-1.5">اضغط لفتح الطلبات ومراجعتها</p>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <span class="material-symbols-outlined">pending_actions</span>
+                </div>
+            </a>
+
+            <div class="bg-white p-5 rounded-xl border border-border-light shadow-sm flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-xs font-bold text-orange-900">استثناءات بانتظارك</p>
+                    <p class="text-3xl font-black text-orange-600 mt-1">@Model.ExceptionPendingMyApprovalCount</p>
+                    <p class="text-xs text-neutral-500 mt-1.5">ضمن الطلبات التي تحتاج قرارك</p>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+                    <span class="material-symbols-outlined">warning</span>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-border-light shadow-sm flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-xs font-bold text-blue-900">اعتمدتها اليوم</p>
+                    <p class="text-3xl font-black text-blue-600 mt-1">@Model.ApprovedTodayCount</p>
+                    <p class="text-xs text-neutral-500 mt-1.5">قرارات اعتماد تمت بواسطتك اليوم</p>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <span class="material-symbols-outlined">task_alt</span>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-border-light shadow-sm flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-xs font-bold text-emerald-900">إجمالي ما اعتمدته</p>
+                    <p class="text-3xl font-black text-emerald-600 mt-1">@Model.TotalApprovedCount</p>
+                    <p class="text-xs text-neutral-500 mt-1.5">منذ بدء استخدام النظام</p>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <span class="material-symbols-outlined">verified</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- The immediate work list comes before general analytics -->
+    <section class="bg-white p-5 rounded-2xl border border-border-light shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-border-light">
+            <div>
+                <h2 class="font-black text-on-surface flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">checklist</span>
+                    الطلبات التي تحتاج اعتمادك
+                </h2>
+            </div>
+            <a href="@Url.Action("Pending", "Request", new { area = "PaperManagement" })"
+               class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-white hover:bg-primary/90 px-4 py-2.5 text-xs font-black">
+                <span>عرض كل طلباتي</span>
+                <span class="material-symbols-outlined text-base">arrow_back</span>
+            </a>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-border-light">
+            <table class="w-full text-sm min-w-[760px]">
+                <thead class="table-header-navy text-white font-bold">
+                    <tr>
+                        <th class="py-3 px-4 text-right">الطلب / الجهة</th>
+                        <th class="py-3 px-4 text-center">الورق</th>
+                        <th class="py-3 px-4 text-center">الكمية</th>
+                        <th class="py-3 px-4 text-center">التاريخ</th>
+                        <th class="py-3 px-4 text-center">النوع</th>
+                        <th class="py-3 px-4 text-center">ماذا أفعل؟</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-light [&>tr:nth-child(odd)]:bg-white [&>tr:nth-child(even)]:bg-[#34435E]/5">
+                    @if (Model.PendingRequests != null && Model.PendingRequests.Any())
+                    {
+                        @foreach (var req in Model.PendingRequests)
+                        {
+                            <tr class="hover:bg-primary/5 transition-colors">
+                                <td class="py-3 px-4">
+                                    <div class="font-extrabold text-on-surface">@req.DepartmentName</div>
+                                    <div class="text-xs text-neutral-500 mt-0.5">طلب #@req.RequestID</div>
+                                </td>
+                                <td class="py-3 px-4 text-center font-bold">@req.PaperTypeName</td>
+                                <td class="py-3 px-4 text-center font-black text-primary">@req.RequestedQuantity @QuantityHelper.RezmaUnit(req.RequestedQuantity)</td>
+                                <td class="py-3 px-4 text-center text-xs text-neutral-600">@req.RequestDate.ToEgyptTime().ToString("yyyy-MM-dd")</td>
+                                <td class="py-3 px-4 text-center">
+                                    @if (req.IsException)
+                                    {
+                                        <span class="inline-flex items-center gap-1 bg-orange-100 text-orange-900 border border-orange-300 font-bold px-2 py-1 rounded-full text-[11px]">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-orange-600"></span> استثناء
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="inline-flex items-center gap-1 bg-neutral-100 text-neutral-700 border border-neutral-200 font-bold px-2 py-1 rounded-full text-[11px]">عادي</span>
+                                    }
+                                </td>
+                                <td class="py-3 px-4 text-center">
+                                    <a href="@Url.Action("Pending", "Request", new { area = "PaperManagement" })"
+                                       class="inline-flex items-center gap-1.5 px-3 py-2 bg-primary text-white hover:bg-primary/90 rounded-lg text-xs font-bold">
+                                        <span>فتح للمراجعة</span>
+                                        <span class="material-symbols-outlined text-sm">arrow_back</span>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center py-10">
+                                <div class="w-12 h-12 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
+                                    <span class="material-symbols-outlined text-2xl">check_circle</span>
+                                </div>
+                                <p class="font-black text-neutral-700">لا توجد طلبات تنتظر قرارك الآن</p>
+                                <p class="text-xs text-neutral-500 mt-1">عند وصول طلب جديد إلى مرحلتك سيظهر هنا.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- General read-only snapshot -->
+    <section class="space-y-3">
+        <div>
+            <h2 class="text-base font-black text-on-surface flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">monitoring</span>
+                صورة عامة للنظام
+            </h2>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            <div class="bg-white p-4 rounded-xl border border-border-light shadow-sm">
+                <p class="text-xs font-bold text-neutral-600">طلبات مفتوحة الآن</p>
+                <p class="text-2xl font-black text-[#34435E] mt-1">@Model.SystemOpenRequestCount</p>
+                <p class="text-[11px] text-neutral-500 mt-1">@Model.SystemPendingITCount لدى أمين العهدة</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-border-light shadow-sm">
+                <p class="text-xs font-bold text-neutral-600">لدى المعتمدين</p>
+                <p class="text-2xl font-black text-violet-600 mt-1">@Model.SystemPendingApproverCount</p>
+                <p class="text-[11px] text-neutral-500 mt-1">جميع مراحل الاعتماد</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-border-light shadow-sm">
+                <p class="text-xs font-bold text-neutral-600">جاهز للصرف</p>
+                <p class="text-2xl font-black text-blue-600 mt-1">@Model.SystemReadyToIssueCount</p>
+                <p class="text-[11px] text-neutral-500 mt-1">تمت الموافقات وينتظر الصرف</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-border-light shadow-sm">
+                <p class="text-xs font-bold text-neutral-600">المصروف هذا الشهر</p>
+                <p class="text-2xl font-black text-emerald-600 mt-1">@Model.IssuedThisMonthQuantity</p>
+                <p class="text-[11px] text-neutral-500 mt-1">@QuantityHelper.RezmaUnit(Model.IssuedThisMonthQuantity) على مستوى النظام</p>
+            </div>
+            <div id="approverCurrentStockCard"
+                 class="bg-white p-4 rounded-xl border border-sky-200 shadow-sm"
+                 data-stock-total="@Model.TotalCurrentStock"
+                 data-stock-a4="@a4Stock"
+                 data-stock-a3="@a3Stock">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="text-xs font-bold text-neutral-600">رصيد المخزن</p>
+                        <p id="approverCurrentStockValue" class="text-2xl font-black text-sky-600 mt-1">@Model.TotalCurrentStock</p>
+                    </div>
+                    <span class="material-symbols-outlined text-sky-600">warehouse</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1.5 mt-3" role="group" aria-label="اختر نوع الورق لعرض رصيد المخزن">
+                    <button type="button" class="approver-stock-choice" data-approver-stock-choice="all" aria-pressed="true">الكل</button>
+                    <button type="button" class="approver-stock-choice" data-approver-stock-choice="a4" aria-pressed="false">A4</button>
+                    <button type="button" class="approver-stock-choice" data-approver-stock-choice="a3" aria-pressed="false">A3</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Shared read-only service desk for approvers -->
+    @await Html.PartialAsync("_DashboardDepartmentQuickDeskPartial", Model)
+
+    <!-- Shared analytics workspace for approvers -->
+    @await Html.PartialAsync("_DashboardDecisionAnalyticsPartial", Model)
+
+    <!-- Optional general exploration - kept, but visually secondary -->
+    <section class="w-full bg-white p-5 rounded-2xl border border-border-light shadow-sm space-y-4">
+        <div class="pb-2 border-b border-border-light">
+            <h2 class="font-black text-on-surface flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">travel_explore</span>
+                تفاصيل الجهات والاستهلاك
+            </h2>
+            <p class="text-xs text-neutral-500 mt-1">قسم اختياري للمقارنة والمتابعة العامة؛ لا تحتاجه لاتخاذ قرار الاعتماد.</p>
+        </div>
+        @await Html.PartialAsync("_DashboardReportFilterPartial", Model.Filter)
+        <div class="max-h-[38rem] overflow-y-auto pr-1">
+            @await Html.PartialAsync("_DashboardDepartmentDetailListPartial", Model.DepartmentConsumption)
+        </div>
+    </section>
+
+    <!-- General inventory context -->
+    <section class="bg-white p-5 rounded-2xl border border-border-light shadow-sm space-y-4">
+        <div class="flex justify-between items-center pb-2 border-b border-border-light">
+            <div>
+                <h3 class="font-black text-on-surface flex items-center gap-2">
+                    <i class="bi bi-boxes text-primary"></i> حالة المخزون العامة
+                </h3>
+                <p class="text-xs text-neutral-500 mt-1">معلومة مساعدة للمعتمد قبل اتخاذ القرار.</p>
+            </div>
+            <span class="text-xs font-bold text-neutral-500">إجمالي الرصيد: @Model.TotalCurrentStock @QuantityHelper.RezmaUnit(Model.TotalCurrentStock)</span>
+        </div>
+
+        @if (Model.InventoryList != null && Model.InventoryList.Any())
+        {
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                @foreach (var item in Model.InventoryList)
+                {
+                    var pctRemaining = item.TotalReceived > 0
+                        ? Math.Min(100, Math.Round((double)item.CurrentStock / item.TotalReceived * 100))
+                        : (item.CurrentStock > 0 ? 100 : 0);
+                    var isLow = item.IsLowStock;
+                    var barColor = isLow ? "bg-red-500" : (pctRemaining < 30 ? "bg-amber-500" : "bg-emerald-500");
+                    var badgeColor = isLow ? "bg-red-100 text-red-700 border-red-200" : "bg-emerald-100 text-emerald-800 border-emerald-200";
+                    var statusText = isLow ? "مخزون منخفض" : "مخزون متاح";
+
+                    <div class="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-3">
+                        <div class="flex justify-between items-start gap-3">
+                            <div>
+                                <p class="font-black text-on-surface">ورق @item.PaperTypeName</p>
+                                <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border @badgeColor mt-1">@statusText</span>
+                            </div>
+                            <div class="text-left">
+                                <p class="text-2xl font-black @(isLow ? "text-red-600" : "text-primary")">@item.CurrentStock</p>
+                                <p class="text-[10px] text-neutral-500">@QuantityHelper.RezmaUnit(item.CurrentStock)</p>
+                            </div>
+                        </div>
+                        <div class="h-2 rounded-full bg-neutral-200 overflow-hidden">
+                            <div class="@barColor h-2 rounded-full" style="width:@pctRemaining%"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="text-xs text-neutral-500 text-center py-6">لا تتوفر معلومات عن رصيد المخزن.</p>
+        }
+    </section>
+
+    <!-- Existing full consumption charts remain available as general context -->
+    <section class="w-full bg-white p-5 rounded-2xl border border-border-light shadow-sm">
+        <div class="mb-4">
+            <h2 class="font-black text-on-surface flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">bar_chart</span>
+                الاستهلاك العام للجهات
+            </h2>
+            <p class="text-xs text-neutral-500 mt-1">صورة عامة للمقارنة، وليست قائمة مهام اعتماد.</p>
+        </div>
+        @await Html.PartialAsync("_DashboardConsumptionChartsPartial", Model.DepartmentConsumptionAll)
+    </section>
+</div>
+
+<script>
+    (function() {
+        var card = document.getElementById('approverCurrentStockCard');
+        if (!card) return;
+
+        var valueEl = document.getElementById('approverCurrentStockValue');
+        var buttons = Array.prototype.slice.call(card.querySelectorAll('[data-approver-stock-choice]'));
+        var values = {
+            all: Number(card.dataset.stockTotal || 0),
+            a4: Number(card.dataset.stockA4 || 0),
+            a3: Number(card.dataset.stockA3 || 0)
+        };
+
+        function render(scope) {
+            valueEl.textContent = Number(values[scope] || 0).toLocaleString('en-US');
+            buttons.forEach(function(button) {
+                button.setAttribute('aria-pressed', button.dataset.approverStockChoice === scope ? 'true' : 'false');
+            });
+        }
+
+        buttons.forEach(function(button) {
+            button.addEventListener('click', function() { render(button.dataset.approverStockChoice); });
+        });
+    })();
+</script>

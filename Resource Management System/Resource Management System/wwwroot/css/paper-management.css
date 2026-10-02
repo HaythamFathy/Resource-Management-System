@@ -1,0 +1,365 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    /* Theme & Base Colors */
+    --primary: #34435E;
+    --container: #58a4b0;
+    --surface: #FFFFFF;
+    --background-subtle: #F8F9FA;
+    --on-surface: #131b2c;
+    --on-surface-variant: #3f484a;
+    --border-light: #D8DBE2;
+    --nav-dark: #373F51;
+    /* Status Badge Colors */
+    --status-review-bg: #f9c74f;
+    --status-review-text: #4a3b00;
+    --status-approver-bg: #f3722c;
+    --status-approver-text: #ffffff;
+    --status-approved-bg: #2DCCFF;
+    --status-approved-text: #003647;
+    --status-rejected-bg: #f94144;
+    --status-rejected-text: #ffffff;
+    --status-issued-bg: #90be6d;
+    --status-issued-text: #1f3b0f;
+    --status-default-bg: #adb5bd;
+    --status-default-text: #ffffff;
+    /* Notification Badge Colors (New / Re-Review) */
+    --badge-new-bg: #10b981;
+    --badge-new-text: #ffffff;
+    --badge-rereview-bg: #f59e0b;
+    --badge-rereview-text: #ffffff;
+    /* Quota Progress Bar Colors */
+    --quota-used: #10b981; /* Emerald-500 */
+    --quota-remaining: #38bdf8; /* Sky-400 */
+    --quota-exception: #f59e0b; /* Amber-500 */
+    /* KPI Metric Card Colors */
+    --kpi-amber-bg: #fff7e6;
+    --kpi-amber-border: #fbbf24;
+    --kpi-blue-bg: #eff6ff;
+    --kpi-blue-border: #60a5fa;
+    --kpi-emerald-bg: #ecfdf5;
+    --kpi-emerald-border: #34d399;
+    --kpi-purple-bg: #f5f3ff;
+    --kpi-purple-border: #a78bfa;
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+}
+
+.status-review {
+    background-color: var(--status-review-bg, #f9c74f);
+    color: var(--status-review-text, #4a3b00);
+}
+
+.status-approver {
+    background-color: var(--status-approver-bg, #f3722c);
+    color: var(--status-approver-text, #ffffff);
+}
+
+.status-approved {
+    background-color: var(--status-approved-bg, #2DCCFF);
+    color: var(--status-approved-text, #003647);
+}
+
+.status-rejected {
+    background-color: var(--status-rejected-bg, #f94144);
+    color: var(--status-rejected-text, #ffffff);
+}
+
+.status-issued {
+    background-color: var(--status-issued-bg, #90be6d);
+    color: var(--status-issued-text, #1f3b0f);
+}
+
+.status-default {
+    background-color: var(--status-default-bg, #adb5bd);
+    color: var(--status-default-text, #ffffff);
+}
+
+.badge-new,
+.badge-rereview,
+.new-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.125rem 0.375rem;
+    border-radius: 9999px;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.badge-new {
+    background-color: var(--badge-new-bg, var(--quota-used));
+    color: var(--badge-new-text, #ffffff);
+}
+
+.badge-rereview {
+    background-color: var(--badge-rereview-bg, var(--quota-exception));
+    color: var(--badge-rereview-text, #ffffff);
+}
+
+/* Quota Progress Bar */
+.quota-progress-container {
+    width: 100%;
+    background-color: #f5f5f5;
+    border-radius: 9999px;
+    height: 1rem;
+    overflow: hidden;
+    display: flex;
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(229, 229, 229, 0.8);
+    padding: 0.125rem;
+    gap: 0.125rem;
+}
+
+.quota-bar-used {
+    background-color: var(--quota-used, #10b981);
+    color: #ffffff;
+    transition: all 0.5s ease;
+}
+
+.quota-bar-remaining {
+    background-color: var(--quota-remaining, #38bdf8);
+    color: #082f49;
+    transition: all 0.5s ease;
+}
+
+.quota-bar-exception {
+    background-color: var(--quota-exception, #f59e0b);
+    color: #ffffff;
+    transition: all 0.5s ease;
+}
+
+.quota-legend-used {
+    background-color: var(--quota-used, #10b981);
+}
+
+.quota-legend-remaining {
+    background-color: var(--quota-remaining, #38bdf8);
+}
+
+.quota-legend-exception {
+    background-color: var(--quota-exception, #f59e0b);
+}
+
+/* Dashboard & Charts */
+.kpi-grid > div:nth-child(1) {
+    background-color: var(--kpi-amber-bg, #fff7e6) !important;
+    border-color: var(--kpi-amber-border, #fbbf24) !important;
+}
+
+.kpi-grid > div:nth-child(2) {
+    background-color: var(--kpi-blue-bg, #eff6ff) !important;
+    border-color: var(--kpi-blue-border, #60a5fa) !important;
+}
+
+.kpi-grid > div:nth-child(3) {
+    background-color: var(--kpi-emerald-bg, #ecfdf5) !important;
+    border-color: var(--kpi-emerald-border, #34d399) !important;
+}
+
+.kpi-grid > div:nth-child(4) {
+    background-color: var(--kpi-purple-bg, #f5f3ff) !important;
+    border-color: var(--kpi-purple-border, #a78bfa) !important;
+}
+
+.chart-scroll-container {
+    position: relative;
+    width: 100%;
+    overflow-y: auto;
+    max-height: 200px;
+}
+
+.table-header-navy {
+    background-color: var(--primary, #34435E) !important;
+    color: #ffffff !important;
+    font-weight: 700;
+}
+
+.report-grand-total-row {
+    margin-bottom: 30px;
+}
+
+/* RTL Overrides */
+html[dir="rtl"],
+body[dir="rtl"],
+body {
+    direction: rtl;
+    text-align: right;
+    font-family: 'Cairo', sans-serif;
+}
+
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+}
+
+[dir="rtl"] input[type="text"],
+[dir="rtl"] input[type="search"],
+[dir="rtl"] input[type="password"],
+[dir="rtl"] select,
+[dir="rtl"] textarea {
+    text-align: right;
+}
+
+/* Layout & Navigation */
+.department-content {
+    display: block;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease;
+}
+
+    .department-content.open {
+        max-height: 2000px;
+    }
+
+.arrow {
+    display: inline-block;
+    transition: transform 0.3s ease;
+}
+
+    .arrow.rotated {
+        transform: rotate(180deg);
+    }
+
+.inventory-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+nav.subnav {
+    background-color: var(--primary, #34435E);
+}
+
+    nav.subnav a {
+        color: rgba(255, 255, 255, 0.85);
+        background: transparent !important;
+        border-radius: 8px !important;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        transition: 0.2s;
+        white-space: nowrap;
+    }
+
+        nav.subnav a:hover {
+            background: rgba(255, 255, 255, 0.12) !important;
+            color: #ffffff;
+        }
+
+        nav.subnav a.active {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.2) !important;
+            font-weight: 700;
+        }
+
+a[href="/PaperManagement/Request/History"],
+a[href="/PaperManagement/Request/LastIssued"] {
+    display: none;
+}
+
+/* Print Styles */
+@page {
+    size: A4;
+    margin: 7mm;
+}
+
+@media print {
+    body {
+        direction: rtl;
+        background: #ffffff !important;
+    }
+
+    nav,
+    aside,
+    header,
+    footer,
+    .sidebar,
+    .no-print,
+    form,
+    .flatpickr-calendar {
+        display: none !important;
+    }
+
+    main,
+    .main-content,
+    #reportPrintable {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #reportPrintable {
+        border: 0 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+        padding: 2mm !important;
+        box-sizing: border-box !important;
+        /* A4 (297mm) minus the 7mm top/bottom @page margins and printable padding.
+           Flex lets the official signature consume the remaining free space so it
+           sits at the bottom of a normal printed page instead of directly under
+           the report table. */
+        min-height: 279mm !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+        #reportPrintable table {
+            width: 100% !important;
+            font-size: 7pt;
+            line-height: 1.1;
+        }
+
+        #reportPrintable th,
+        #reportPrintable td {
+            padding: 1.5mm !important;
+        }
+
+        #reportPrintable .report-document-header {
+            padding-bottom: 2mm !important;
+            margin-bottom: 2mm !important;
+        }
+
+        #reportPrintable tr,
+        #officialSignature {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+    .report-document-header {
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
+        .report-document-header > :first-child,
+        .report-document-header > :last-child {
+            display: none !important;
+        }
+
+    #officialSignature {
+        margin-top: auto !important;
+        padding-top: 3mm !important;
+        padding-left: 4mm !important;
+        padding-right: 4mm !important;
+        padding-bottom: 1mm !important;
+        min-height: 32mm !important;
+        font-size: 8pt !important;
+        flex-shrink: 0 !important;
+    }
+
+        #officialSignature .mt-12 {
+            margin-top: 2mm !important;
+        }
+}

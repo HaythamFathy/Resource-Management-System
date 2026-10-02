@@ -1,0 +1,59 @@
+.new-request-row {
+    animation: newRequestHighlight 1.8s ease-out 1;
+}
+
+@keyframes newRequestHighlight {
+    0% {
+        background-color: #dcfce7;
+    }
+
+    100% {
+        background-color: transparent;
+    }
+}
+
+/* Keep the arrival badge visually noticeable without a permanent animation.
+   The old infinite opacity pulse forced continuous repaints while scrolling,
+   which caused the visible badge jitter/glitch. */
+.new-badge {
+    animation: newBadgePulse 1.1s ease-in-out 3;
+    transition: opacity 0.2s ease-out;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    contain: paint;
+}
+
+@keyframes newBadgePulse {
+    0%, 100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.72;
+    }
+}
+
+.new-badge.fading-out,
+.fading-out {
+    animation: fadeOutBadge 0.2s ease forwards;
+}
+
+@keyframes fadeOutBadge {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .new-request-row,
+    .new-badge,
+    .new-badge.fading-out,
+    .fading-out {
+        animation: none !important;
+        transition: none !important;
+    }
+}

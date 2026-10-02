@@ -1,0 +1,404 @@
+﻿@model Resource_Management_System.Models.RequestFilterViewModel
+@{
+    var from = Model.FromDate?.ToString("yyyy-MM-dd") ?? "";
+    var to = Model.ToDate?.ToString("yyyy-MM-dd") ?? "";
+    var allDepts = Model.Departments?.ToList() ?? new List<SelectListItem>();
+    var selectedIds = Model.SelectedDepartmentIDs ?? new List<int>();
+    var hasSelection = selectedIds.Any();
+
+    var g1Depts = allDepts.Where(d => int.TryParse(d.Value, out var id) && id <= 24).ToList();
+    var g2Depts = allDepts.Where(d => int.TryParse(d.Value, out var id) && id > 24).ToList();
+}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr@4.6.13/dist/l10n/ar.js"></script>
+
+<div class="bg-surface-white border border-border-light rounded-2xl p-5 shadow-sm space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border-light">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <span class="material-symbols-outlined text-lg">tune</span>
+            </div>
+            <div>
+                <h3 class="font-bold text-sm text-on-surface">فلتر قائمة الطلبات</h3>
+            </div>
+        </div>
+
+        <!-- Quick Date Presets -->
+        <div class="flex items-center gap-1.5 bg-neutral-100 p-1 rounded-xl text-xs font-semibold">
+            <button type="button" onclick="setQueuePreset('today')" class="px-2.5 py-1 rounded-lg hover:bg-white hover:shadow-xs transition-all text-neutral-700">اليوم</button>
+            <button type="button" onclick="setQueuePreset('week')" class="px-2.5 py-1 rounded-lg hover:bg-white hover:shadow-xs transition-all text-neutral-700">هذا الأسبوع</button>
+            <button type="button" onclick="setQueuePreset('month')" class="px-2.5 py-1 rounded-lg hover:bg-white hover:shadow-xs transition-all text-neutral-700">هذا الشهر</button>
+            <button type="button" onclick="setQueuePreset('year')" class="px-2.5 py-1 rounded-lg hover:bg-white hover:shadow-xs transition-all text-neutral-700">هذا العام</button>
+            <button type="button" onclick="setQueuePreset('all')" class="px-2.5 py-1 rounded-lg hover:bg-white hover:shadow-xs transition-all text-neutral-700">كل الفترات</button>
+        </div>
+    </div>
+
+    <form method="get" id="queueFilterForm" data-instant-filter="true" data-auto-filter="true" class="space-y-4">
+        <!-- Main Controls Grid (5 Columns on Large Screens) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 @(Model.Statuses != null ? "lg:grid-cols-6" : "lg:grid-cols-5") gap-3 items-end">
+            <!-- 1. Checklist Trigger Button (2 cols on lg) -->
+            <div class="lg:col-span-2">
+                <label class="block text-xs font-bold text-on-surface mb-1.5 flex items-center justify-between">
+                    <span class="flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm text-primary">checklist</span>
+                        <span>تحديد الجهات والأقسام</span>
+                    </span>
+                    <span id="queueSelectedCountBadge" class="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full"></span>
+                </label>
+                <button type="button" onclick="toggleQueueChecklistPanel()" id="queueChecklistTriggerBtn"
+                        class="w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white text-xs font-bold text-neutral-800 flex items-center justify-between transition-all shadow-xs">
+                    <span class="flex items-center gap-1.5 truncate">
+                        <span class="material-symbols-outlined text-primary text-base">domain</span>
+                        <span id="queueTriggerBtnLabel">تحديد الجهات والأقسام</span>
+                    </span>
+                    <span class="material-symbols-outlined text-neutral-400 text-sm transition-transform duration-300" id="queueChecklistChevron">expand_more</span>
+                </button>
+            </div>
+
+            <!-- 2. Paper Type Filter -->
+            <div>
+                <label class="block text-xs font-bold text-on-surface mb-1.5 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm text-primary">description</span>
+                    <span>نوع الورق</span>
+                </label>
+                <select name="PaperTypeID"
+                        class="w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white focus:bg-white text-xs font-bold text-neutral-800 transition-all cursor-pointer">
+                    <option value="">📄 كل الأنواع</option>
+                    @if (Model.PaperTypes != null)
+                    {
+                        foreach (var pt in Model.PaperTypes)
+                        {
+                            <option value="@pt.Value" selected="@(Model.PaperTypeID.HasValue && Model.PaperTypeID.Value.ToString() == pt.Value)">ورق @pt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <!-- 3. Status Filter (only rendered when the calling page supplies a status list) -->
+            @if (Model.Statuses != null)
+            {
+                <div>
+                    <label class="block text-xs font-bold text-on-surface mb-1.5 flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-sm text-primary">flag</span>
+                        <span>حالة الطلب</span>
+                    </label>
+                    <select name="Status" id="queueStatusFilter" onchange="onQueueStatusChange()"
+                            class="w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white focus:bg-white text-xs font-bold text-neutral-800 transition-all cursor-pointer">
+                        <option value="">كل الحالات</option>
+                        @foreach (var st in Model.Statuses)
+                        {
+                            <option value="@st.Value" selected="@(Model.Status == st.Value)">@st.Text</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <!-- 4. Start Date Picker (من تاريخ) -->
+            <div>
+                <label class="block text-xs font-bold text-on-surface mb-1.5 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm text-primary">calendar_today</span>
+                    <span>من تاريخ</span>
+                </label>
+                <input type="text" id="queueFromDateInput" name="FromDate" value="@from" placeholder="اختر تاريخ البداية" readonly
+                       class="w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white focus:bg-white text-xs font-bold text-neutral-800 transition-all cursor-pointer" />
+            </div>
+
+            <!-- 5. End Date Picker (إلى تاريخ) -->
+            <div>
+                <label class="block text-xs font-bold text-on-surface mb-1.5 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm text-primary">event</span>
+                    <span>إلى تاريخ</span>
+                </label>
+                <input type="text" id="queueToDateInput" name="ToDate" value="@to" placeholder="اختر تاريخ النهاية" readonly
+                       class="w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white focus:bg-white text-xs font-bold text-neutral-800 transition-all cursor-pointer" />
+            </div>
+        </div>
+
+        <!-- Pending Sub-stages row (only relevant pages that expose a status filter) -->
+        @if (Model.Statuses != null)
+        {
+            <div id="queuePendingStageWrap" class="@(Model.Status == "Pending" ? "" : "hidden") bg-neutral-50 border border-border-light rounded-xl p-3 space-y-2">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-amber-600 text-sm">hourglass_top</span>
+                    <span class="text-xs font-bold text-neutral-700">تصفية مرحلة الانتظار الفرعية:</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-4 text-xs font-medium">
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" name="PendingStageOption" value="ITReview" class="queue-pending-stage-option w-4 h-4 rounded text-primary focus:ring-primary border-gray-300"
+                        @(Model.PendingStages?.Split(',', StringSplitOptions.RemoveEmptyEntries).Contains("ITReview") == true ? "checked" : "") />
+                        <span>قيد مراجعة أمين العهده</span>
+                        <span class="inline-flex min-w-7 items-center justify-center rounded-full bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 text-[10px] font-black">@Model.PendingITReviewCount</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" name="PendingStageOption" value="DeputyIT" class="queue-pending-stage-option w-4 h-4 rounded text-primary focus:ring-primary border-gray-300"
+                        @(Model.PendingStages?.Split(',', StringSplitOptions.RemoveEmptyEntries).Contains("DeputyIT") == true ? "checked" : "") />
+                        <span>قيد مراجعة نائب رئيس الإدارة</span>
+                        <span class="inline-flex min-w-7 items-center justify-center rounded-full bg-blue-100 text-blue-800 border border-blue-200 px-2 py-0.5 text-[10px] font-black">@Model.PendingApproverOneCount</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" name="PendingStageOption" value="ITDepartment" class="queue-pending-stage-option w-4 h-4 rounded text-primary focus:ring-primary border-gray-300"
+                        @(Model.PendingStages?.Split(',', StringSplitOptions.RemoveEmptyEntries).Contains("ITDepartment") == true ? "checked" : "") />
+                        <span>قيد مراجعة مدير الإدارة</span>
+                        <span class="inline-flex min-w-7 items-center justify-center rounded-full bg-violet-100 text-violet-800 border border-violet-200 px-2 py-0.5 text-[10px] font-black">@Model.PendingApproverTwoCount</span>
+                    </label>
+                </div>
+                <input type="hidden" name="PendingStages" id="queuePendingStagesHidden" value="@Model.PendingStages" />
+            </div>
+        }
+
+        <!-- Action Buttons Row -->
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-border-light/60">
+            <a href="@Url.Action(ViewContext.RouteData.Values["action"]?.ToString())" data-instant-filter-reset="true" class="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 transition-all" title="إعادة ضبط الفلاتر">
+                <span class="material-symbols-outlined text-base">restart_alt</span>
+                <span>إعادة ضبط</span>
+            </a>
+        </div>
+
+        <!-- Expandable Dual-Checklist Panel -->
+        <div id="queueChecklistPanel" data-instant-preserve-open="true" class="hidden border border-border-light rounded-2xl p-4 bg-neutral-50/80 space-y-4 transition-all duration-300">
+            <!-- Search & Quick Selection Row -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border-light">
+                <div class="relative flex-1 min-w-[240px]">
+                    <span class="material-symbols-outlined absolute right-3 top-2.5 text-neutral-400 text-base">search</span>
+                    <input type="text" id="queueDeptSearchInput" onkeyup="searchQueueDepartments()" placeholder="بحث سريع في أسماء الجهات والإدارات..."
+                           class="w-full border border-border-light rounded-xl pr-9 pl-3 py-2 bg-white text-xs text-neutral-800 placeholder-neutral-400 focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="checkQueueAll(true)" class="px-3 py-1.5 rounded-lg bg-white border border-border-light hover:bg-primary/10 hover:text-primary text-[11px] font-bold text-neutral-700 transition-all">
+                        تحديد كافة الجهات (@allDepts.Count)
+                    </button>
+                    <button type="button" onclick="checkQueueAll(false)" class="px-3 py-1.5 rounded-lg bg-white border border-border-light hover:bg-red-50 hover:text-red-700 text-[11px] font-bold text-neutral-700 transition-all">
+                        إلغاء التحديد بالكامل
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dual Columns Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- COLUMN 1: إدارات الشركة والأفرع (1 to 24) -->
+                <div class="bg-white rounded-xl border border-border-light p-3 space-y-3">
+                    <div class="bg-primary/5 p-2.5 rounded-lg border border-primary/20 flex items-center justify-between">
+                        <label class="flex items-center gap-2 cursor-pointer font-extrabold text-xs text-primary">
+                            <input type="checkbox" id="queueSelectAllGroup1" onchange="toggleQueueGroup('queue-g1', this.checked)"
+                                   class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300 cursor-pointer" />
+                            <span>أولاً: تحديد الكل (إدارات الشركة والأفرع)</span>
+                        </label>
+                        <span class="text-[10px] font-bold text-primary bg-white px-2 py-0.5 rounded-full border border-primary/20">@g1Depts.Count جهة</span>
+                    </div>
+
+                    <div class="max-h-56 overflow-y-auto space-y-1 pr-1 divide-y divide-neutral-100">
+                        @foreach (var dept in g1Depts)
+                        {
+                            var id = int.Parse(dept.Value);
+                            var isChecked = !hasSelection || selectedIds.Contains(id);
+                            <label class="queue-dept-item flex items-center gap-2 p-1.5 hover:bg-neutral-50 rounded-lg cursor-pointer text-xs" data-name="@dept.Text">
+                                <input type="checkbox" name="SelectedDepartmentIDs" value="@dept.Value"
+                                       class="queue-dept-chk queue-g1-chk w-4 h-4 rounded text-primary focus:ring-primary border-gray-300 cursor-pointer"
+                                       checked="@isChecked" onchange="updateQueueCounter()" />
+                                <span class="w-5 text-center text-[10px] font-bold text-neutral-400">@dept.Value</span>
+                                <span class="font-semibold text-neutral-800 text-xs">@dept.Text</span>
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <!-- COLUMN 2: القطاعات والوحدات (25+) -->
+                <div class="bg-white rounded-xl border border-border-light p-3 space-y-3">
+                    <div class="bg-[#58a4b0]/10 p-2.5 rounded-lg border border-[#58a4b0]/30 flex items-center justify-between">
+                        <label class="flex items-center gap-2 cursor-pointer font-extrabold text-xs text-[#2e6f7b]">
+                            <input type="checkbox" id="queueSelectAllGroup2" onchange="toggleQueueGroup('queue-g2', this.checked)"
+                                   class="w-4 h-4 rounded text-[#58a4b0] focus:ring-[#58a4b0] border-gray-300 cursor-pointer" />
+                            <span>ثانياً: تحديد الكل (القطاعات والوحدات)</span>
+                        </label>
+                        <span class="text-[10px] font-bold text-[#2e6f7b] bg-white px-2 py-0.5 rounded-full border border-[#58a4b0]/30">@g2Depts.Count جهة</span>
+                    </div>
+
+                    <div class="max-h-56 overflow-y-auto space-y-1 pr-1 divide-y divide-neutral-100">
+                        @foreach (var dept in g2Depts)
+                        {
+                            var id = int.Parse(dept.Value);
+                            var isChecked = !hasSelection || selectedIds.Contains(id);
+                            <label class="queue-dept-item flex items-center gap-2 p-1.5 hover:bg-neutral-50 rounded-lg cursor-pointer text-xs" data-name="@dept.Text">
+                                <input type="checkbox" name="SelectedDepartmentIDs" value="@dept.Value"
+                                       class="queue-dept-chk queue-g2-chk w-4 h-4 rounded text-[#58a4b0] focus:ring-[#58a4b0] border-gray-300 cursor-pointer"
+                                       checked="@isChecked" onchange="updateQueueCounter()" />
+                                <span class="w-5 text-center text-[10px] font-bold text-neutral-400">@dept.Value</span>
+                                <span class="font-semibold text-neutral-800 text-xs">@dept.Text</span>
+                            </label>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    function toggleQueueChecklistPanel() {
+        var panel = document.getElementById('queueChecklistPanel');
+        var chevron = document.getElementById('queueChecklistChevron');
+        if (!panel) return;
+        if (panel.classList.contains('hidden')) {
+            panel.classList.remove('hidden');
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+        } else {
+            panel.classList.add('hidden');
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    function toggleQueueGroup(group, isChecked) {
+        var chks = document.querySelectorAll('.' + group + '-chk');
+        chks.forEach(function(c) { c.checked = isChecked; });
+        updateQueueCounter();
+        paperScheduleInstantFilter(document.getElementById('queueFilterForm'), 650);
+    }
+
+    function checkQueueAll(isChecked) {
+        var all = document.querySelectorAll('.queue-dept-chk');
+        all.forEach(function(c) { c.checked = isChecked; });
+        var elGroup1 = document.getElementById('queueSelectAllGroup1');
+        var elGroup2 = document.getElementById('queueSelectAllGroup2');
+        if (elGroup1) elGroup1.checked = isChecked;
+        if (elGroup2) elGroup2.checked = isChecked;
+        updateQueueCounter();
+        paperScheduleInstantFilter(document.getElementById('queueFilterForm'), 650);
+    }
+
+    function updateQueueCounter() {
+        var total = document.querySelectorAll('.queue-dept-chk').length;
+        var checked = document.querySelectorAll('.queue-dept-chk:checked').length;
+        var g1Total = document.querySelectorAll('.queue-g1-chk').length;
+        var g1Checked = document.querySelectorAll('.queue-g1-chk:checked').length;
+        var g2Total = document.querySelectorAll('.queue-g2-chk').length;
+        var g2Checked = document.querySelectorAll('.queue-g2-chk:checked').length;
+
+        var elGroup1 = document.getElementById('queueSelectAllGroup1');
+        var elGroup2 = document.getElementById('queueSelectAllGroup2');
+        if (elGroup1) elGroup1.checked = (g1Total > 0 && g1Checked === g1Total);
+        if (elGroup2) elGroup2.checked = (g2Total > 0 && g2Checked === g2Total);
+
+        var badge = document.getElementById('queueSelectedCountBadge');
+        var label = document.getElementById('queueTriggerBtnLabel');
+
+        if (checked === total) {
+            if (badge) badge.innerText = 'الكل (' + total + ')';
+            if (label) label.innerText = 'جميع الجهات مختارة (' + total + ')';
+        } else if (checked === 0) {
+            if (badge) badge.innerText = 'لا شيء محدد';
+            if (label) label.innerText = 'لم يتم تحديد أي جهة';
+        } else {
+            if (badge) badge.innerText = checked + ' من ' + total;
+            if (label) label.innerText = 'تم تحديد ' + checked + ' جهة';
+        }
+    }
+
+    function searchQueueDepartments() {
+        var filter = normalizeArabicSearch(document.getElementById('queueDeptSearchInput').value);
+        var items = document.querySelectorAll('.queue-dept-item');
+        items.forEach(function(item) {
+            var name = normalizeArabicSearch(item.getAttribute('data-name') || '');
+            if (name.includes(filter)) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    function onQueueStatusChange() {
+        var statusFilter = document.getElementById('queueStatusFilter');
+        var pendingStageWrap = document.getElementById('queuePendingStageWrap');
+        var pendingStagesHidden = document.getElementById('queuePendingStagesHidden');
+        if (!statusFilter) return;
+
+        if (statusFilter.value === 'Pending') {
+            if (pendingStageWrap) pendingStageWrap.classList.remove('hidden');
+        } else {
+            if (pendingStageWrap) pendingStageWrap.classList.add('hidden');
+            document.querySelectorAll('.queue-pending-stage-option').forEach(function(c) { c.checked = false; });
+            if (pendingStagesHidden) pendingStagesHidden.value = '';
+        }
+    }
+
+    function initQueueFilterUi() {
+        updateQueueCounter();
+        document.querySelectorAll('.queue-pending-stage-option').forEach(function(cb) {
+            if (cb.dataset.instantBound === '1') return;
+            cb.dataset.instantBound = '1';
+            cb.addEventListener('change', function() {
+                var selected = Array.from(document.querySelectorAll('.queue-pending-stage-option:checked')).map(function(c) { return c.value; });
+                var hidden = document.getElementById('queuePendingStagesHidden');
+                if (hidden) hidden.value = selected.join(',');
+            });
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initQueueFilterUi, { once: true });
+    else initQueueFilterUi();
+
+    var queueFpFrom = flatpickr("#queueFromDateInput", {
+        locale: "ar",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d/m/Y",
+        altInputClass: "w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white focus:bg-white text-xs font-bold text-neutral-800 transition-all cursor-pointer",
+        defaultDate: @Html.Raw(string.IsNullOrEmpty(from) ? "null" : $"\"{from}\""),
+        onChange: function(selectedDates, dateStr) {
+            if (queueFpTo) {
+                queueFpTo.set('minDate', dateStr);
+            }
+        },
+        onClose: function(selectedDates) {
+            if (selectedDates && selectedDates.length) paperScheduleInstantFilter(document.getElementById('queueFilterForm'), 120);
+        }
+    });
+
+    var queueFpTo = flatpickr("#queueToDateInput", {
+        locale: "ar",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d/m/Y",
+        altInputClass: "w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white focus:bg-white text-xs font-bold text-neutral-800 transition-all cursor-pointer",
+        defaultDate: @Html.Raw(string.IsNullOrEmpty(to) ? "null" : $"\"{to}\""),
+        onChange: function(selectedDates, dateStr) {
+            if (queueFpFrom) {
+                queueFpFrom.set('maxDate', dateStr);
+            }
+        },
+        onClose: function(selectedDates) {
+            if (selectedDates && selectedDates.length) paperScheduleInstantFilter(document.getElementById('queueFilterForm'), 120);
+        }
+    });
+
+    function setQueuePreset(type) {
+        var now = new Date();
+        var start = null, end = null;
+        if (type === 'today') {
+            start = now; end = now;
+        } else if (type === 'week') {
+            var daysSinceSaturday = (now.getDay() + 1) % 7;
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceSaturday);
+            end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+        } else if (type === 'month') {
+            start = new Date(now.getFullYear(), now.getMonth(), 1);
+            end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        } else if (type === 'year') {
+            start = new Date(now.getFullYear(), 0, 1);
+            end = new Date(now.getFullYear(), 11, 31);
+        } else if (type === 'all') {
+            queueFpFrom.clear();
+            queueFpTo.clear();
+            document.getElementById('queueFromDateInput').value = '';
+            document.getElementById('queueToDateInput').value = '';
+            paperInstantFilterSubmit(document.getElementById('queueFilterForm'));
+            return;
+        }
+
+        if (start && end) {
+            queueFpFrom.setDate(start, true);
+            queueFpTo.setDate(end, true);
+            paperInstantFilterSubmit(document.getElementById('queueFilterForm'));
+        }
+    }
+</script>

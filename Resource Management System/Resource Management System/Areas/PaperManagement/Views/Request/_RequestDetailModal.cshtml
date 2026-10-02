@@ -1,0 +1,153 @@
+@model Resource_Management_System.Models.RequestItemViewModel
+@{
+    var item = Model;
+    bool isActionable = ViewData["IsActionable"] as bool? ?? false;
+    string mode = ViewData["ModalMode"] as string
+        ?? (ViewData["IsApprover"] as bool? ?? false ? "Approver" : "ITReview");
+    bool isApprover = mode.Equals("Approver", StringComparison.OrdinalIgnoreCase);
+    bool showStats = ViewData["ShowDepartmentStats"] as bool? ?? (isApprover || isActionable);
+}
+<div id="request-@item.RequestID" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" data-department-id="@item.DepartmentID" data-papertype-id="@item.PaperTypeID" onclick="if (event.target === this) { closeRequest(@item.RequestID); }">
+    <div class="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl p-6">
+        <div class="flex justify-between items-start border-b pb-4">
+            <div>
+                <h3 class="text-xl font-extrabold">طلب #@item.RequestID — @item.DepartmentName</h3>
+                <p class="text-sm text-gray-500">@item.PaperTypeName · @item.RequestDate.ToEgyptTime().ToString("yyyy/MM/dd HH:mm")</p>
+            </div>
+            <button type="button" onclick="closeRequest(@item.RequestID)" class="w-9 h-9 shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-colors" aria-label="إغلاق التفاصيل">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+
+        @if (showStats)
+        {
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 my-5">
+                <div class="rounded-xl bg-primary/10 p-4">
+                    <p class="text-xs text-gray-600">إجمالي طلبات القسم لهذا النوع</p>
+                    <p class="text-xl font-bold text-primary" id="total-@item.RequestID">جارِ التحميل...</p>
+                </div>
+                <div class="rounded-xl bg-emerald-50 p-4">
+                    <p class="text-xs text-gray-600">المصروف سابقاً</p>
+                    <p class="text-xl font-bold text-emerald-700" id="issued-@item.RequestID">جارِ التحميل...</p>
+                </div>
+                <div class="rounded-xl bg-amber-50 p-4">
+                    <p class="text-xs text-gray-600">حصة القسم المتبقية</p>
+                    <p class="text-xl font-bold text-amber-700">@(item.QuotaLimit == 0 ? "غير محددة" : QuantityHelper.RezmaText(item.RemainingQuota))</p>
+                </div>
+            </div>
+        }
+        <div class="rounded-xl border border-border-light p-4">
+            <h4 class="font-bold mb-3">تفاصيل الطلب</h4>
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div><dt class="text-gray-500">الكمية المطلوبة</dt><dd class="font-bold">@item.RequestedQuantity @QuantityHelper.RezmaUnit(item.RequestedQuantity)</dd></div>
+                <div>
+                    <dt class="text-gray-500">الحالة</dt>
+                    <dd class="flex items-center gap-1.5 flex-wrap">
+                        @await Html.PartialAsync("_StatusBadge", item.Status)
+                        @if (item.IsException)
+                        {
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full w-fit"><i class="bi bi-exclamation-triangle-fill"></i>استثناء</span>
+                        }
+                    </dd>
+                </div>
+            </dl>
+
+            <div class="mt-5">
+                <h4 class="font-bold mb-3">سجل الأحداث</h4>
+                <div id="timeline-@item.RequestID" class="border rounded-xl p-4 text-sm text-gray-400">جارِ التحميل...</div>
+            </div>
+
+        </div>
+
+        <div class="mt-5">
+            <h4 class="font-bold mb-3">سجل طلبات @item.DepartmentName — @item.PaperTypeName</h4><div class="max-h-52 overflow-y-auto border rounded-xl">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50"><tr><th class="p-3">الطلب</th><th class="p-3">النوع</th><th class="p-3">الكمية</th><th class="p-3">الحالة</th><th class="p-3">التاريخ</th></tr></thead>
+                <tbody id="history-@item.RequestID">
+                    <tr><td colspan="5" class="p-3 text-center text-gray-400">جارِ التحميل...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (isApprover)
+    {
+        @if (isActionable)
+        {
+            <div class="grid sm:grid-cols-2 gap-3 border-t pt-5 mt-5">
+                <form asp-area="PaperManagement" asp-controller="Request" asp-action="Approve" method="post" class="space-y-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="requestId" value="@item.RequestID" />
+                    <input name="note" maxlength="500" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="ملاحظة الاعتماد (اختيارية)" />
+                    <button class="bg-primary text-white px-4 py-2 rounded-lg font-bold w-full">اعتماد الطلب</button>
+                </form>
+                <form asp-area="PaperManagement" asp-controller="Request" asp-action="Reject" method="post" class="space-y-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="requestId" value="@item.RequestID" />
+                    <input name="note" maxlength="500" required class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="سبب الرفض" />
+                    <button class="text-red-700 border border-red-300 px-4 py-2 rounded-lg font-bold w-full">رفض الطلب</button>
+                </form>
+            </div>
+        }
+    }
+    else
+    {
+        @if (item.Status == Resource_Management_System.Common.RequestStatus.PendingITReview)
+        {
+            <div class="mt-6 border-t pt-5">
+                <div class="flex flex-wrap items-end gap-3">
+                    <form asp-area="PaperManagement" asp-controller="Request" asp-action="Review" method="post" class="flex flex-wrap items-end gap-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="requestId" value="@item.RequestID" />
+                        <label class="text-sm font-bold">
+                            الكمية المعتمدة
+                            <input type="number" name="reviewedQuantity" value="@item.RequestedQuantity" min="1" required class="mt-1 block w-28 border rounded-lg p-2 text-center" />
+                        </label>
+                        <label class="text-sm font-bold flex-1 min-w-[12rem]">
+                            ملاحظات IT
+                            <input type="text" name="notes" class="mt-1 block w-full border rounded-lg p-2" placeholder="ملاحظاتك الخاصة (اختياري)..." />
+                        </label>
+                        <button type="submit" class="bg-primary text-white px-4 py-2 rounded-lg font-bold">اعتماد وإرسال للموافقه</button>
+                    </form>
+                    <form asp-area="PaperManagement" asp-controller="Request" asp-action="RejectByIT" method="post" class="flex items-end gap-2">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="requestId" value="@item.RequestID" />
+                        <input type="text" name="note" required maxlength="500" class="border rounded-lg p-2 text-sm w-56" placeholder="سبب الرفض (مطلوب)" />
+                        <button type="submit" onclick="return confirm('هل تريد رفض هذا الطلب؟');" class="text-red-700 border border-red-300 px-4 py-2 rounded-lg font-bold">رفض الطلب</button>
+                    </form>
+                </div>
+            </div>
+        }
+        else if (item.Status == Resource_Management_System.Common.RequestStatus.PendingITReReview)
+        {
+            <div class="mt-6 border-t pt-5">
+                <div class="mb-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                    <i class="bi bi-info-circle-fill"></i> هذا الطلب مرفوض من قبل: <strong>@(item.RejectedByName ?? "غير معروف")</strong>. راجع الملاحظات أعلاه، ثم أعد الإرسال بعد التعديل أو أغلق الطلب نهائياً.
+                </div>
+                <div class="flex flex-wrap items-end gap-3">
+                    <form asp-area="PaperManagement" asp-controller="Request" asp-action="ResendForApproval" method="post" class="flex flex-wrap items-end gap-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="requestId" value="@item.RequestID" />
+                        <label class="text-sm font-bold">
+                            الكمية المعدّلة
+                            <input type="number" name="reviewedQuantity" value="@item.RequestedQuantity" min="1" required class="mt-1 block w-28 border rounded-lg p-2 text-center" />
+                        </label>
+                        <label class="text-sm font-bold flex-1 min-w-[12rem]">
+                            ملاحظات IT (اختياري)
+                            <input type="text" name="notes" class="mt-1 block w-full border rounded-lg p-2" placeholder="أي تعديل أو توضيح..." />
+                        </label>
+                        <button type="submit" class="bg-primary text-white px-4 py-2 rounded-lg font-bold">إعادة الإرسال للاعتماد</button>
+                    </form>
+                    <form asp-area="PaperManagement" asp-controller="Request" asp-action="FinalizeRejection" method="post" class="flex items-end gap-2">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="requestId" value="@item.RequestID" />
+                        <input type="text" name="note" required maxlength="500" class="border rounded-lg p-2 text-sm w-56" placeholder="سبب الإغلاق النهائي (مطلوب)" />
+                        <button type="submit" onclick="return confirm('سيتم إغلاق الطلب نهائياً ولا يمكن التراجع. هل أنت متأكد؟');" class="text-red-700 border border-red-300 px-4 py-2 rounded-lg font-bold">إغلاق الطلب نهائياً</button>
+                    </form>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+</div>

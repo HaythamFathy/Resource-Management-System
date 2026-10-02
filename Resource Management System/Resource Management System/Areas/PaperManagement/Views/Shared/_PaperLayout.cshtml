@@ -1,0 +1,451 @@
+@{
+    var userName = User.Identity?.Name ?? "المستخدم";
+    var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+    var homeHref = userRole == Roles.Department
+        ? "/PaperManagement/Request/DepartmentHome"
+        : "/Home/Index";
+}
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="~/lib/material-symbols/material-symbols-outlined.css" rel="stylesheet" asp-append-version="true" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/bootstrap-icons.min.css" asp-append-version="true">
+    <script id="tailwind-config">
+            tailwind.config = {
+                darkMode: "class",
+                theme: {
+                    extend: {
+                        colors: {
+                            "primary": "#34435E",
+                            "primary-container": "#58a4b0",
+                            "surface-white": "#FFFFFF",
+                            "background-subtle": "#F8F9FA",
+                            "on-surface": "#131b2c",
+                            "on-surface-variant": "#3f484a",
+                            "border-light": "#D8DBE2",
+                            "nav-dark": "#373F51"
+                        },
+                        borderRadius: { DEFAULT: "10px", lg: "12px", xl: "16px", full: "9999px" },
+                        fontFamily: { body: ["Cairo", "sans-serif"] }
+                    }
+                }
+            }
+    </script>
+    <link rel="stylesheet" href="~/css/paper-management.css" />
+</head>
+<body class="bg-background-subtle min-h-screen flex flex-col justify-between text-on-surface">
+
+    <!-- Top Header -->
+    <header class="bg-surface-white border-b border-border-light shadow-sm sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+
+            <div class="flex items-center gap-4">
+                <a href="@homeHref" class="flex items-center gap-1.5 text-sm font-bold text-primary bg-primary/5 hover:bg-primary/10 px-3.5 py-2.5 rounded-lg transition-colors border border-primary/20" title="الرئيسية">
+                    <span class="material-symbols-outlined text-base">home</span>
+                    <span>الرئيسية</span>
+                </a>
+
+                <div class="h-6 w-px bg-border-light mx-1"></div>
+
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 bg-primary text-white rounded-lg flex items-center justify-center font-bold">
+                        <span class="material-symbols-outlined text-xl">description</span>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-base text-primary leading-none">نظام إدارة مخزون الورق</h1>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Header Pill -->
+            <div class="flex items-center gap-4">
+                @if (userRole == Roles.Admin)
+                {
+                    <a href="/PaperManagement/DepartmentManagement/Index" class="flex items-center gap-1.5 text-xs font-bold text-white bg-primary hover:bg-primary/90 px-3 py-2 rounded-lg transition-colors">
+                        <i class="bi bi-diagram-3"></i>
+                        <span>إدارة الأقسام</span>
+                    </a>
+                }
+
+                <div class="text-right border-l border-border-light pl-4">
+                    <p class="text-sm font-bold text-on-surface leading-none">@userName</p>
+                </div>
+
+                <form asp-controller="Account" asp-action="Logout" asp-area="" method="post" class="inline">
+                    <button type="submit" class="text-xs font-bold text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors" title="تسجيل الخروج">
+                        <span class="material-symbols-outlined text-base">logout</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Sub-Navigation Navigation Bar -->
+        <nav class="subnav px-6">
+            <div class="max-w-7xl mx-auto flex items-center gap-5 py-2 text-sm font-semibold overflow-x-auto whitespace-nowrap">
+                @if (userRole == Roles.Department)
+                {
+                    <a href="/PaperManagement/Request/DepartmentHome" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-house-door-fill"></i>
+                        <span>الرئيسية</span>
+                    </a>
+                }
+
+                @if (userRole == Roles.IT || userRole == Roles.Admin)
+                {
+                    <a href="/PaperManagement/Request/Index" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-grid-fill"></i>
+                        <span>لوحة التحكم</span>
+                    </a>
+                }
+
+                @if (userRole != Roles.Approver)
+                {
+                    <a href="/PaperManagement/Request/Create" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-plus-circle"></i>
+                        <span>@(userRole == Roles.Department ? "طلب صرف جديد" : "طلب جديد")</span>
+                    </a>
+                }
+
+                @if (userRole == Roles.Department || userRole == Roles.IT || userRole == Roles.Admin)
+                {
+                    <a href="/PaperManagement/Request/ExceptionRequest" class="px-4 py-3 flex items-center gap-2 text-amber-700">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <span>طلب استثناء</span>
+                    </a>
+                }
+
+                
+                @if (userRole == Roles.Department)
+                {
+                    <a href="/PaperManagement/Request/MyRequests" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-list-check"></i>
+                        <span>كل طلباتي</span>
+                    </a>
+                }
+
+                @if (userRole == Roles.Approver)
+                {
+                    <a href="/PaperManagement/Request/Index"
+                       class="px-4 py-3 flex items-center gap-2">
+
+                        <i class="bi bi-grid-fill"></i>
+                        <span>لوحة التحكم</span>
+
+                    </a>
+
+                    <a href="/PaperManagement/Request/Pending"
+                       class="px-4 py-3 flex items-center gap-2">
+
+                        <i class="bi bi-clipboard-check"></i>
+                        <span>طلبات الاعتماد</span>
+
+                    </a>
+                }
+
+                @if (userRole == Roles.IT || userRole == Roles.Admin)
+                {
+                    <a href="/PaperManagement/Request/ReviewQueue" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-clipboard-check"></i>
+                        <span>مراجعة الطلبات</span>
+                    </a>
+
+                    <a href="/PaperManagement/Request/IssueQueue" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-box-arrow-right"></i>
+                        <span>قائمة الصرف</span>
+                    </a>
+
+                    <a href="/PaperManagement/Request/Inventory" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-boxes"></i>
+                        <span>المخزن</span>
+                    </a>
+                }
+
+                @if (userRole == Roles.IT || userRole == Roles.Admin)
+                {
+                    <a href="/PaperManagement/Request/History" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-journal-text"></i>
+                        <span>سجل الطلبات</span>
+                    </a>
+                }
+
+                @* Reports are read-only for Approver, IT and Admin. *@
+                @if (userRole == Roles.IT || userRole == Roles.Admin || userRole == Roles.Approver)
+                {
+                    <a href="/PaperManagement/ReportsCenter/Index" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-collection"></i>
+                        <span>التقارير</span>
+                    </a>
+                    <a href="/PaperManagement/Request/Reports" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-bar-chart-line"></i>
+                        <span>بيان صرف الجهات</span>
+                    </a>
+                }
+
+                @* The last-issued management page remains IT/Admin only. *@
+                @if (userRole == Roles.IT || userRole == Roles.Admin)
+                {
+                    <a href="/PaperManagement/Request/LastIssued" class="px-4 py-3 flex items-center gap-2">
+                        <i class="bi bi-clock-history"></i>
+                        <span>آخر صرف للأقسام</span>
+                    </a>
+                }
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Body Container -->
+    <main id="paperPageContent" class="max-w-7xl mx-auto px-6 py-8 flex-1 w-full">
+        @RenderBody()
+    </main>
+
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+    <script>
+            document.querySelectorAll('nav a[href]').forEach(function(link) {
+                if (link.pathname.toLowerCase() === window.location.pathname.toLowerCase()) link.classList.add('active');
+            });
+            document.addEventListener('click', function(event) {
+                var input = event.target && event.target.closest ? event.target.closest('input[type="date"]') : null;
+                if (input && input.showPicker) { try { input.showPicker(); } catch (e) { } }
+            });
+
+            // Shared instant GET-filter engine. Only forms explicitly marked
+            // data-instant-filter="true" use it; POST/action/export forms remain untouched.
+            (function() {
+                var activeController = null;
+                var pendingTimers = new WeakMap();
+
+                function normalizeUrl(url) {
+                    return new URL(url, window.location.origin).toString();
+                }
+
+                var loadedScriptUrls = new Set();
+                Array.prototype.forEach.call(document.scripts, function(script) {
+                    if (script.src) loadedScriptUrls.add(normalizeUrl(script.src));
+                });
+
+                function captureUiState(root) {
+                    var active = document.activeElement;
+                    var focusState = null;
+                    if (active && root.contains(active)) {
+                        focusState = {
+                            id: active.id || '',
+                            name: active.getAttribute('name') || '',
+                            value: 'value' in active ? active.value : null,
+                            start: typeof active.selectionStart === 'number' ? active.selectionStart : null,
+                            end: typeof active.selectionEnd === 'number' ? active.selectionEnd : null
+                        };
+                    }
+
+                    var openPanels = [];
+                    root.querySelectorAll('[data-instant-preserve-open="true"][id]').forEach(function(el) {
+                        if (!el.classList.contains('hidden')) openPanels.push(el.id);
+                    });
+
+                    return {
+                        scrollX: window.scrollX || window.pageXOffset || 0,
+                        scrollY: window.scrollY || window.pageYOffset || 0,
+                        focus: focusState,
+                        openPanels: openPanels
+                    };
+                }
+
+                function restoreUiState(root, state) {
+                    (state.openPanels || []).forEach(function(id) {
+                        var panel = document.getElementById(id);
+                        if (!panel) return;
+                        panel.classList.remove('hidden');
+                        var chevronId = id.replace(/Panel$/, 'Chevron');
+                        var chevron = document.getElementById(chevronId);
+                        if (chevron) chevron.style.transform = 'rotate(180deg)';
+                    });
+
+                    if (state.focus) {
+                        var target = null;
+                        if (state.focus.id) target = document.getElementById(state.focus.id);
+                        if (!target && state.focus.name) {
+                            try { target = root.querySelector('[name="' + CSS.escape(state.focus.name) + '"]'); } catch (e) { }
+                        }
+                        if (target && typeof target.focus === 'function') {
+                            try {
+                                target.focus({ preventScroll: true });
+                                if (state.focus.value !== null && 'value' in target && target.type === 'search') target.value = state.focus.value;
+                                if (state.focus.start !== null && typeof target.setSelectionRange === 'function') {
+                                    target.setSelectionRange(state.focus.start, state.focus.end ?? state.focus.start);
+                                }
+                            } catch (e) { }
+                        }
+                    }
+
+                    window.scrollTo(state.scrollX, state.scrollY);
+                }
+
+                function destroyCharts(root) {
+                    if (!window.Chart || typeof Chart.getChart !== 'function') return;
+                    root.querySelectorAll('canvas').forEach(function(canvas) {
+                        try {
+                            var chart = Chart.getChart(canvas);
+                            if (chart) chart.destroy();
+                        } catch (e) { }
+                    });
+                }
+
+                async function executeScripts(container) {
+                    var scripts = Array.prototype.slice.call(container.querySelectorAll('script'));
+                    for (var i = 0; i < scripts.length; i++) {
+                        var oldScript = scripts[i];
+                        var src = oldScript.getAttribute('src');
+                        if (src) {
+                            var absoluteSrc = normalizeUrl(src);
+                            var alreadyLoaded = loadedScriptUrls.has(absoluteSrc);
+                            oldScript.remove();
+                            if (alreadyLoaded) continue;
+
+                            await new Promise(function(resolve) {
+                                var script = document.createElement('script');
+                                script.src = absoluteSrc;
+                                script.async = false;
+                                script.onload = function() { loadedScriptUrls.add(absoluteSrc); resolve(); };
+                                script.onerror = resolve;
+                                document.body.appendChild(script);
+                            });
+                        } else {
+                            var replacement = document.createElement('script');
+                            Array.prototype.slice.call(oldScript.attributes).forEach(function(attr) {
+                                replacement.setAttribute(attr.name, attr.value);
+                            });
+                            replacement.text = oldScript.textContent || '';
+                            oldScript.replaceWith(replacement);
+                        }
+                    }
+                }
+
+                async function navigateInstant(url, options) {
+                    options = options || {};
+                    var root = document.getElementById('paperPageContent');
+                    if (!root) {
+                        window.location.href = url;
+                        return;
+                    }
+
+                    var state = captureUiState(root);
+                    if (activeController) activeController.abort();
+                    var controller = new AbortController();
+                    activeController = controller;
+
+                    root.classList.add('opacity-60', 'pointer-events-none');
+                    try {
+                        var response = await fetch(url, {
+                            method: 'GET',
+                            credentials: 'same-origin',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                            signal: controller.signal
+                        });
+                        if (!response.ok) throw new Error('Filter request failed: ' + response.status);
+
+                        var html = await response.text();
+                        var parsed = new DOMParser().parseFromString(html, 'text/html');
+                        var incoming = parsed.getElementById('paperPageContent');
+                        if (!incoming) throw new Error('Updated page content was not found.');
+
+                        destroyCharts(root);
+                        root.innerHTML = incoming.innerHTML;
+                        document.title = parsed.title || document.title;
+                        history.replaceState({}, '', url);
+                        await executeScripts(root);
+                        restoreUiState(root, state);
+                    } catch (error) {
+                        if (error && error.name === 'AbortError') return;
+                        console.error(error);
+                        window.location.href = url;
+                    } finally {
+                        if (activeController === controller) {
+                            activeController = null;
+                            var currentRoot = document.getElementById('paperPageContent');
+                            if (currentRoot) currentRoot.classList.remove('opacity-60', 'pointer-events-none');
+                        }
+                    }
+                }
+
+                function buildGetUrl(form, submitter) {
+                    var action = (submitter && submitter.formAction) || form.action || window.location.href;
+                    var url = new URL(action, window.location.origin);
+                    var data = new FormData(form);
+                    var params = new URLSearchParams();
+                    data.forEach(function(value, key) {
+                        if (value === null || String(value).trim() === '') return;
+                        params.append(key, value);
+                    });
+                    url.search = params.toString();
+                    return url.toString();
+                }
+
+                window.paperInstantFilterNavigate = function(url) {
+                    return navigateInstant(normalizeUrl(url));
+                };
+
+                window.paperInstantFilterSubmit = function(form) {
+                    if (!form) return;
+                    if (form.dataset.instantFilter !== 'true') {
+                        form.requestSubmit ? form.requestSubmit() : form.submit();
+                        return;
+                    }
+                    return navigateInstant(buildGetUrl(form, null));
+                };
+
+                window.paperScheduleInstantFilter = function(form, delay) {
+                    if (!form) return;
+                    var current = pendingTimers.get(form);
+                    if (current) clearTimeout(current);
+                    var timer = setTimeout(function() {
+                        pendingTimers.delete(form);
+                        window.paperInstantFilterSubmit(form);
+                    }, typeof delay === 'number' ? delay : 450);
+                    pendingTimers.set(form, timer);
+                };
+
+                document.addEventListener('submit', function(event) {
+                    var form = event.target.closest && event.target.closest('form[data-instant-filter="true"]');
+                    if (!form) return;
+                    var submitter = event.submitter;
+                    if (submitter) {
+                        var target = submitter.getAttribute('formtarget') || form.getAttribute('target');
+                        if (target && target.toLowerCase() === '_blank') return;
+                        if (submitter.hasAttribute('data-no-instant-filter')) return;
+                        var submitterAction = submitter.getAttribute('formaction');
+                        if (submitterAction && normalizeUrl(submitterAction) !== normalizeUrl(form.action || window.location.href)) return;
+                    }
+                    if ((form.method || 'get').toLowerCase() !== 'get') return;
+                    event.preventDefault();
+                    navigateInstant(buildGetUrl(form, submitter));
+                });
+
+                document.addEventListener('change', function(event) {
+                    var control = event.target;
+                    var form = control && control.closest ? control.closest('form[data-instant-filter="true"][data-auto-filter="true"]') : null;
+                    if (!form || control.hasAttribute('data-no-auto-filter')) return;
+                    if (control.matches('input[type="text"], input[type="search"]')) return;
+                    window.paperScheduleInstantFilter(form, control.matches('input[type="checkbox"]') ? 650 : 120);
+                });
+
+                document.addEventListener('input', function(event) {
+                    var control = event.target;
+                    if (!control || !control.matches('[data-instant-search]')) return;
+                    var form = control.closest('form[data-instant-filter="true"]');
+                    if (!form) return;
+                    window.paperScheduleInstantFilter(form, 400);
+                });
+
+                document.addEventListener('click', function(event) {
+                    var reset = event.target.closest && event.target.closest('a[data-instant-filter-reset="true"]');
+                    if (!reset) return;
+                    event.preventDefault();
+                    navigateInstant(normalizeUrl(reset.href));
+                });
+            })();
+    </script>
+</body>
+</html>

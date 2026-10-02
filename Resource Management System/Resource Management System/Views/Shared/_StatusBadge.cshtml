@@ -1,0 +1,27 @@
+@model string
+@{
+    var status = Model ?? "";
+    var (label, cssClasses) = Resource_Management_System.Common.StatusDisplayHelper.GetBadgeInfo(status);
+    var icon = status switch
+    {
+        Resource_Management_System.Common.RequestStatus.PendingITReview
+            or Resource_Management_System.Common.RequestStatus.PendingITReReview
+            => "hourglass_top",
+
+        Resource_Management_System.Common.RequestStatus.PendingApproverOne
+            or Resource_Management_System.Common.RequestStatus.PendingApproverTwo
+            => "schedule",
+
+        Resource_Management_System.Common.RequestStatus.Approved
+            => "task_alt",
+
+        Resource_Management_System.Common.RequestStatus.Rejected
+            => "cancel",
+
+        Resource_Management_System.Common.RequestStatus.Issued
+            => "inventory_2",
+
+        _ => "info"
+    };
+}
+<span class="@cssClasses d-inline-flex align-items-center gap-1"><span class="material-symbols-outlined" style="font-size:15px">@icon</span>@label</span>

@@ -1,0 +1,137 @@
+@model IEnumerable<Resource_Management_System.Models.RequestItemViewModel>
+@{
+    ViewData["Title"] = "سجل الطلبات";
+    var filter = ViewBag.Filter as Resource_Management_System.Models.RequestFilterViewModel ?? new Resource_Management_System.Models.RequestFilterViewModel();
+}
+
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-extrabold text-on-surface mb-1">سجل الطلبات</h2>
+        </div>
+        <span class="bg-gray-100 text-gray-800 text-xs font-bold px-3 py-1.5 rounded-full">
+            إجمالي السجلات: @Model.Count()
+        </span>
+    </div>
+
+    <!-- Universal Request Filter Component -->
+    @await Html.PartialAsync("_RequestFilterPartial", filter)
+
+    @if (!Model.Any())
+    {
+        <div class="bg-surface-white rounded-xl p-12 text-center border border-border-light shadow-sm">
+            <i class="bi bi-search text-gray-300 text-6xl mb-3 block"></i>
+            <h3 class="text-lg font-bold text-gray-700">لا توجد سجلات تطابق خيارات البحث والتصفية</h3>
+            <p class="text-sm text-gray-500 mt-1">جرب تغيير معايير البحث أو إعادة ضبط الفلاتر.</p>
+        </div>
+    }
+    else
+    {
+        <div class="bg-surface-white rounded-xl shadow-sm border border-border-light overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-right text-sm">
+                    <thead class="bg-slate-800 border-b border-slate-900 text-white font-bold">
+                        <tr>
+                            <th class="py-4 px-4">رقم الطلب</th>
+                            <th class="py-4 px-4">القسم</th>
+                            <th class="py-4 px-4">النوع</th>
+                            <th class="py-4 px-4">الكمية المصروفة/المطلوبة</th>
+                            <th class="py-4 px-4">تاريخ الطلب</th>
+                            <th class="py-4 px-4">الحالة</th>
+                            <th class="py-4 px-4">تاريخ الاعتماد/المعتمد</th>
+                            <th class="py-4 px-4">تاريخ الصرف/المصروف بواسطة</th>
+                            <th class="py-4 px-4">الملاحظات</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 font-semibold [&>tr:nth-child(odd)]:bg-white [&>tr:nth-child(even)]:bg-[#34435E]/5">
+                        @foreach (var item in Model)
+                        {
+                            <tr class="hover:bg-cyan-50 transition-colors" data-filter-row data-status="@item.Status" data-search="@($"{item.RequestID} {item.DepartmentName} {item.PaperTypeName} {item.Notes} {item.ITReviewNotes} {item.RejectionNote}".ToLower())">
+                                <td class="py-4 px-4 font-bold text-primary">#@item.RequestID</td>
+                                <td class="py-4 px-4">@item.DepartmentName</td>
+                                <td class="py-4 px-4"><span class="badge bg-light text-dark border">@item.PaperTypeName</span></td>
+                                <td class="py-4 px-4 font-bold">@item.RequestedQuantity @QuantityHelper.RezmaUnit(item.RequestedQuantity)</td>
+                                <td class="py-4 px-4 text-gray-500 text-xs">@item.RequestDate.ToEgyptTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                <td class="py-4 px-4 text-xs">
+                                    <div class="flex flex-col gap-1">
+                                        @await Html.PartialAsync("_StatusBadge", item.Status)@if (item.IsException) {
+                                        <span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full w-fit"><i class="bi bi-exclamation-triangle-fill"></i>استثناء</span>
+                                    }
+                                </div>
+                            </td>
+                            <td class="py-4 px-4 text-xs">
+                                @if (item.ApprovedDate.HasValue)
+                                {
+                                    <span class="block text-gray-700">@item.ApprovedDate.Value.ToEgyptTime().ToString("yyyy/MM/dd")</span>
+                                    <span class="text-[11px] text-gray-400">بواسطة: @(item.ApprovedByName ?? "-")</span>
+                                }
+                                else if (item.RejectedDate.HasValue)
+                                {
+                                    <span class="block text-red-600">مرفوض @item.RejectedDate.Value.ToEgyptTime().ToString("yyyy/MM/dd")</span>
+                                    <span class="text-[11px] text-gray-400">بواسطة: @(item.RejectedByName ?? "-")</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">-</span>
+                                }
+                            </td>
+                            <td class="py-4 px-4 text-xs">
+                                @if (item.IssuedDate.HasValue)
+                                {
+                                    <span class="block text-emerald-700">@item.IssuedDate.Value.ToEgyptTime().ToString("yyyy/MM/dd")</span>
+                                    <span class="text-[11px] text-gray-400">بواسطة: @(item.IssuedByName ?? "-")</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">-</span>
+                                }
+                            </td>
+                            <td class="py-4 px-4 text-gray-600 text-xs max-w-[220px]">
+                                <div class="space-y-1">
+                                    @if (!string.IsNullOrWhiteSpace(item.Notes))
+                                    {
+                                        <div><span class="font-bold text-gray-500">القسم:</span> @item.Notes</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(item.ITReviewNotes))
+                                    {
+                                        <div><span class="font-bold text-gray-500">IT:</span> @item.ITReviewNotes</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(item.ApproverOneNote))
+                                    {
+                                        <div>
+                                            <span class="font-bold text-gray-500">
+                                                نائب رئيس إدارة تكنولوجيا المعلومات:
+                                            </span> @item.ApproverOneNote
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(item.ApproverTwoNote))
+                                    {
+                                        <div>
+                                            <span class="font-bold text-gray-500">
+                                                مدير إدارة تكنولوجيا المعلومات:
+                                            </span> @item.ApproverTwoNote
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(item.RejectionNote))
+                                    {
+                                        <div class="text-red-600"><span class="font-bold">رفض (@(item.RejectedByName ?? "-")):</span> @item.RejectionNote</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(item.IssueNotes))
+                                    {
+                                        <div><span class="font-bold text-gray-500">الصرف:</span> @item.IssueNotes</div>
+                                    }
+                                    @if (string.IsNullOrWhiteSpace(item.Notes) && string.IsNullOrWhiteSpace(item.ITReviewNotes) && string.IsNullOrWhiteSpace(item.ApproverOneNote) && string.IsNullOrWhiteSpace(item.ApproverTwoNote) && string.IsNullOrWhiteSpace(item.RejectionNote) && string.IsNullOrWhiteSpace(item.IssueNotes))
+                                    {
+                                        <span>-</span>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p id="filterNoResults" class="hidden text-center text-gray-500 py-8">لا توجد نتائج مطابقة للفلاتر الحالية.</p>
+    </div>
+}
+</div>

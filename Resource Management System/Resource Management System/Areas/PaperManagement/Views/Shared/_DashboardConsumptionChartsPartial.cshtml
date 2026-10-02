@@ -1,0 +1,161 @@
+@model List<Resource_Management_System.Models.DepartmentConsumptionSummary>
+@{
+    var consumptionList = Model ?? new List<Resource_Management_System.Models.DepartmentConsumptionSummary>();
+    var g1Consumption = consumptionList.Where(x => x.DepartmentID <= 24).OrderBy(x => x.DepartmentID).ToList();
+    var g2Consumption = consumptionList.Where(x => x.DepartmentID > 24).OrderBy(x => x.DepartmentID).ToList();
+    var canOpenDetailedReports = User.IsInRole(Resource_Management_System.Common.Roles.IT) || User.IsInRole(Resource_Management_System.Common.Roles.Admin) || User.IsInRole(Resource_Management_System.Common.Roles.Approver);
+}
+
+<div class="space-y-4">
+    <div class="flex justify-between items-center pb-2 border-b border-border-light">
+        <div>
+            <h3 class="font-bold text-on-surface flex items-center gap-2">
+                <i class="bi bi-bar-chart-fill text-primary"></i> تحليل استهلاك الأقسام للورق (@consumptionList.Count جهة)
+            </h3>
+        </div>
+        @if (canOpenDetailedReports)
+        {
+            <a href="/PaperManagement/Request/Reports" class="text-xs text-primary font-semibold hover:underline">عرض التقرير المفصل</a>
+        }
+    </div>
+
+    <!-- 1. TOP CHART: إدارات الشركة والأفرع (1 to 24) -->
+    <div class="space-y-2 bg-neutral-50/60 p-3 border border-border-light/70 rounded-xl">
+        <div class="flex items-center justify-between">
+            <h4 class="font-extrabold text-xs text-primary flex items-center gap-2">
+                <span class="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-black">1</span>
+                إدارات الشركة والأفرع (أولاً: 1 إلى 24)
+            </h4>
+            <span class="text-[11px] font-bold text-neutral-500 bg-white px-2.5 py-1 rounded-full border border-border-light">
+                إجمالي الاستهلاك: <strong class="text-primary">@g1Consumption.Sum(x => x.TotalQuantity)</strong> @QuantityHelper.RezmaUnit(g1Consumption.Sum(x => x.TotalQuantity)) (@g1Consumption.Count جهة)
+            </span>
+        </div>
+
+        @if (g1Consumption.Any())
+        {
+            <div class="w-full border border-border-light/60 rounded-xl p-2 bg-white overflow-hidden">
+                <div class="chart-scroll-container">
+                    <div class="relative w-full" style="height: @(Math.Max(140, g1Consumption.Count * 22))px;">
+                        <canvas id="g1DepartmentAnalysisChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <p class="text-xs text-neutral-500 text-center py-6 bg-white rounded-xl border border-border-light">لا توجد بيانات استهلاك لإدارات الشركة والأفرع وفقاً للتصفية الحالية.</p>
+        }
+    </div>
+
+    <!-- 2. BOTTOM CHART: القطاعات والوحدات (25+) - PLACED ON TOP OF EACH OTHER -->
+    <div class="space-y-2 bg-neutral-50/60 p-3 border border-border-light/70 rounded-xl">
+        <div class="flex items-center justify-between">
+            <h4 class="font-extrabold text-xs text-[#2e6f7b] flex items-center gap-2">
+                <span class="w-6 h-6 rounded-lg bg-[#58a4b0]/15 text-[#2e6f7b] flex items-center justify-center text-xs font-black">2</span>
+                القطاعات والوحدات (ثانياً: 25 وما فوق)
+            </h4>
+            <span class="text-[11px] font-bold text-neutral-500 bg-white px-2.5 py-1 rounded-full border border-border-light">
+                إجمالي الاستهلاك: <strong class="text-[#2e6f7b]">@g2Consumption.Sum(x => x.TotalQuantity)</strong> @QuantityHelper.RezmaUnit(g2Consumption.Sum(x => x.TotalQuantity)) (@g2Consumption.Count جهة)
+            </span>
+        </div>
+
+        @if (g2Consumption.Any())
+        {
+            <div class="w-full border border-border-light/60 rounded-xl p-2 bg-white overflow-hidden">
+                <div class="chart-scroll-container">
+                    <div class="relative w-full" style="height: @(Math.Max(120, g2Consumption.Count * 22))px;">
+                        <canvas id="g2DepartmentAnalysisChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <p class="text-xs text-neutral-500 text-center py-6 bg-white rounded-xl border border-border-light">لا توجد بيانات استهلاك للقطاعات والوحدات وفقاً للتصفية الحالية.</p>
+        }
+    </div>
+
+</div>
+
+<script src="~/lib/chartjs/chart.umd.min.js"></script>
+<script>
+    (function() {
+        function initDashboardCharts() {
+            if (typeof Chart === 'undefined') {
+                return;
+            }
+
+            // 1. Group 1 Chart (Departments 1-24)
+            var g1Canvas = document.getElementById('g1DepartmentAnalysisChart');
+            if (g1Canvas) {
+                var g1Labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(g1Consumption.Select(x => x.DepartmentName.Trim().Replace("\r", "").Replace("\n", ""))));
+                var g1A4Data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(g1Consumption.Select(x => x.A4Quantity)));
+                var g1A3Data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(g1Consumption.Select(x => x.A3Quantity)));
+
+                new Chart(g1Canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: g1Labels,
+                        datasets: [
+                            { label: 'ورق A4', data: g1A4Data, backgroundColor: '#34435E', borderRadius: 5 },
+                            { label: 'ورق A3', data: g1A3Data, backgroundColor: '#58a4b0', borderRadius: 5 }
+                        ]
+                    },
+                    options: {
+                        locale: 'en-US',
+                        responsive: true,
+                        indexAxis: 'y',
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { stacked: true, beginAtZero: true, grid: { color: '#f0f2f5' }, ticks: { font: { family: 'Cairo', size: 10 } } },
+                            y: { stacked: true, grid: { display: false }, ticks: { autoSkip: false, font: { family: 'Cairo', size: 10, weight: 'bold' } } }
+                        },
+                        plugins: {
+                            legend: { position: 'top', labels: { font: { family: 'Cairo', size: 10, weight: 'bold' }, boxWidth: 10, padding: 8 } },
+                            tooltip: { rtl: true, bodyFont: { family: 'Cairo' }, titleFont: { family: 'Cairo' }, callbacks: { label: function(c) { return ' ' + c.dataset.label + ': ' + rezmaText(c.raw); } } }
+                        }
+                    }
+                });
+            }
+
+            // 2. Group 2 Chart (Departments 25+)
+            var g2Canvas = document.getElementById('g2DepartmentAnalysisChart');
+            if (g2Canvas) {
+                var g2Labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(g2Consumption.Select(x => x.DepartmentName.Trim().Replace("\r", "").Replace("\n", ""))));
+                var g2A4Data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(g2Consumption.Select(x => x.A4Quantity)));
+                var g2A3Data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(g2Consumption.Select(x => x.A3Quantity)));
+
+                new Chart(g2Canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: g2Labels,
+                        datasets: [
+                            { label: 'ورق A4', data: g2A4Data, backgroundColor: '#2e6f7b', borderRadius: 5 },
+                            { label: 'ورق A3', data: g2A3Data, backgroundColor: '#8b5cf6', borderRadius: 5 }
+                        ]
+                    },
+                    options: {
+                        locale: 'en-US',
+                        responsive: true,
+                        indexAxis: 'y',
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { stacked: true, beginAtZero: true, grid: { color: '#f0f2f5' }, ticks: { font: { family: 'Cairo', size: 10 } } },
+                            y: { stacked: true, grid: { display: false }, ticks: { autoSkip: false, font: { family: 'Cairo', size: 10, weight: 'bold' } } }
+                        },
+                        plugins: {
+                            legend: { position: 'top', labels: { font: { family: 'Cairo', size: 10, weight: 'bold' }, boxWidth: 10, padding: 8 } },
+                            tooltip: { rtl: true, bodyFont: { family: 'Cairo' }, titleFont: { family: 'Cairo' }, callbacks: { label: function(c) { return ' ' + c.dataset.label + ': ' + rezmaText(c.raw); } } }
+                        }
+                    }
+                });
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initDashboardCharts);
+        } else {
+            initDashboardCharts();
+        }
+    })();
+</script>

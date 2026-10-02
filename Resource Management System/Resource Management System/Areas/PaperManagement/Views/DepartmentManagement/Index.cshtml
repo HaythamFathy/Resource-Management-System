@@ -1,0 +1,471 @@
+@model List<Resource_Management_System.Models.DepartmentAdminViewModel>
+@{
+    Layout = null;
+    var approverUsers = ViewBag.ApproverUsers as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+    var fixedApprovers = ViewBag.FixedApprovers as IDictionary<int, int> ?? new Dictionary<int, int>();
+
+    var companyDepartments = Model.Where(d => d.DepartmentID <= 24).ToList();
+    var sectorDepartments = Model.Where(d => d.DepartmentID > 24).ToList();
+    var paperTypeCount = Model.SelectMany(d => d.PaperQuotas).Select(q => q.PaperTypeID).Distinct().Count();
+    var quotaEntryCount = Model.Sum(d => d.PaperQuotas.Count);
+    var assignedApproverCount = fixedApprovers.Count(x => x.Value > 0);
+
+    var departmentGroups = new[]
+    {
+        new { Key = "company", Title = "إدارات الشركة والأفرع", Icon = "apartment", Departments = companyDepartments },
+        new { Key = "sector", Title = "القطاعات والوحدات", Icon = "account_tree", Departments = sectorDepartments }
+    };
+}
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>إدارة الجهات والحصص</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="~/lib/material-symbols/material-symbols-outlined.css" rel="stylesheet" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/paper-management.css" asp-append-version="true" />
+    <style>
+            .dept-panel {
+                display: none;
+            }
+
+            .dept-card.is-open .dept-panel {
+                display: block;
+            }
+
+            .dept-card.is-open .dept-chevron {
+                transform: rotate(180deg);
+            }
+
+            .dept-chevron {
+                transition: transform .2s ease;
+            }
+
+            .filter-chip.active {
+                background: #34435E;
+                color: #fff;
+                border-color: #34435E;
+            }
+
+            .quota-input {
+                direction: ltr;
+                text-align: center !important;
+            }
+
+            .soft-scrollbar {
+                scrollbar-width: thin;
+                scrollbar-color: #cbd5e1 transparent;
+            }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-800 p-4 md:p-7">
+    <main class="max-w-7xl mx-auto space-y-5">
+        <!-- Simple page header: one primary action and one way home. -->
+        <header class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 md:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div class="flex items-start gap-3">
+                <div class="w-11 h-11 rounded-xl bg-[#34435E] text-white flex items-center justify-center shrink-0">
+                    <span class="material-symbols-outlined">domain</span>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-black text-slate-900">إدارة الجهات والحصص</h1>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a href="/Home/Index" class="h-10 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-bold flex items-center gap-2 transition">
+                    <span class="material-symbols-outlined text-[18px]">home</span>
+                    الرئيسية
+                </a>
+                <a href="/PaperManagement/DepartmentManagement/CreateDepartment" class="h-10 px-4 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-bold flex items-center gap-2 transition shadow-sm">
+                    <span class="material-symbols-outlined text-[18px]">add</span>
+                    إضافة جهة جديدة
+                </a>
+            </div>
+        </header>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl font-bold text-sm flex items-center gap-2">
+                <span class="material-symbols-outlined text-[19px]">check_circle</span>
+                @TempData["SuccessMessage"]
+            </div>
+        }
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="p-3.5 bg-red-50 border border-red-200 text-red-800 rounded-xl font-bold text-sm flex items-center gap-2">
+                <span class="material-symbols-outlined text-[19px]">error</span>
+                @TempData["ErrorMessage"]
+            </div>
+        }
+
+        <!-- At-a-glance admin summary; no new database logic. -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-bold text-slate-500">إجمالي الجهات</span>
+                    <span class="material-symbols-outlined text-[#34435E] text-[20px]">domain</span>
+                </div>
+                <div class="text-2xl font-black text-[#34435E] mt-1">@Model.Count</div>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-bold text-slate-500">أنواع الورق</span>
+                    <span class="material-symbols-outlined text-sky-600 text-[20px]">description</span>
+                </div>
+                <div class="text-2xl font-black text-sky-700 mt-1">@paperTypeCount</div>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-bold text-slate-500">إعدادات الحصص</span>
+                    <span class="material-symbols-outlined text-emerald-600 text-[20px]">tune</span>
+                </div>
+                <div class="text-2xl font-black text-emerald-700 mt-1">@quotaEntryCount</div>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-bold text-slate-500">المعتمدون المعيّنون</span>
+                    <span class="material-symbols-outlined text-amber-600 text-[20px]">verified_user</span>
+                </div>
+                <div class="text-2xl font-black text-amber-700 mt-1">@assignedApproverCount / 2</div>
+            </div>
+        </section>
+
+        <!-- Approval setup stays fully available but is visually separated from department work. -->
+        <section class="bg-amber-50 border border-amber-200 rounded-2xl shadow-sm overflow-hidden">
+            <div class="p-4 md:p-5 border-b border-amber-200 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-amber-200 text-amber-900 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[20px]">approval</span>
+                    </div>
+                    <div>
+                        <h2 class="font-black text-amber-950">مسار الاعتماد الثابت</h2>
+                    </div>
+                </div>
+            </div>
+
+            @if (approverUsers.Any())
+            {
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 p-4 md:p-5">
+                    @foreach (var stage in new[] { 1, 2 })
+                    {
+                        var currentApproverName = fixedApprovers.TryGetValue(stage, out var currentId)
+                            ? approverUsers.FirstOrDefault(a => a.Value == currentId.ToString())?.Text
+                            : null;
+                        var stageName = stage == 1 ? "نائب رئيس إدارة تكنولوجيا المعلومات" : "مدير إدارة تكنولوجيا المعلومات";
+
+                        <div class="approver-block bg-white border border-amber-200 rounded-xl p-4 shadow-sm" data-stage="@stage">
+                            <div class="approver-locked flex items-center justify-between gap-3">
+                                <div class="min-w-0">
+                                    <div class="text-[11px] font-bold text-amber-700 mb-1">المرحلة @stage</div>
+                                    <div class="font-black text-slate-800 text-sm">@stageName</div>
+                                    <div class="text-xs text-slate-500 mt-1 truncate">المعيّن حالياً: <strong class="text-slate-700">@(currentApproverName ?? "لم يُعيّن بعد")</strong></div>
+                                </div>
+                                <button type="button" class="edit-approver-btn shrink-0 h-9 px-3 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-black flex items-center gap-1.5">
+                                    <span class="material-symbols-outlined text-[16px]">edit</span>
+                                    تعديل
+                                </button>
+                            </div>
+                            <form asp-action="SetFixedApprover" method="post" class="approver-form hidden items-center gap-2 mt-3 pt-3 border-t border-amber-100">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="approvalStage" value="@stage" />
+                                <select name="userId" class="h-10 border border-amber-300 rounded-lg px-3 flex-1 text-sm bg-white" required>
+                                    @foreach (var approver in approverUsers)
+                                    {
+                                        <option value="@approver.Value" selected="@(fixedApprovers.TryGetValue(stage, out var id) && approver.Value == id.ToString())">@approver.Text</option>
+                                    }
+                                </select>
+                                <button class="h-10 bg-amber-700 hover:bg-amber-800 text-white text-sm px-4 rounded-lg font-black">حفظ</button>
+                                <button type="button" class="cancel-approver-btn h-10 text-xs text-slate-500 hover:text-slate-800 px-2 font-bold">إلغاء</button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="p-5 text-sm text-amber-900 font-semibold">لا توجد حسابات بدور المعتمد بعد.</div>
+            }
+        </section>
+
+        <!-- Department workspace -->
+        <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div class="p-4 md:p-5 border-b border-slate-200 space-y-4">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div>
+                        <h2 class="font-black text-slate-900 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[#34435E]">manage_accounts</span>
+                            الجهات والحصص الشهرية
+                        </h2>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" id="expandAllBtn" class="h-9 px-3 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-[16px]">unfold_more</span> فتح الظاهر
+                        </button>
+                        <button type="button" id="collapseAllBtn" class="h-9 px-3 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-[16px]">unfold_less</span> إغلاق الكل
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+                        <input id="deptSearch" type="search" placeholder="اكتب اسم الجهة أو رقمها..." autocomplete="off"
+                               class="w-full h-11 border border-slate-300 rounded-xl pr-10 pl-4 text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#34435E]/25 focus:border-[#34435E]" />
+                    </div>
+                    <div class="flex gap-2 overflow-x-auto soft-scrollbar pb-1 xl:pb-0" role="group" aria-label="تصفية الجهات">
+                        <button type="button" class="filter-chip active whitespace-nowrap h-10 px-3 rounded-xl border border-slate-300 text-xs font-black" data-filter="all">الكل (@Model.Count)</button>
+                        <button type="button" class="filter-chip whitespace-nowrap h-10 px-3 rounded-xl border border-slate-300 text-xs font-black text-slate-600 hover:bg-slate-50" data-filter="company">إدارات وأفرع (@companyDepartments.Count)</button>
+                        <button type="button" class="filter-chip whitespace-nowrap h-10 px-3 rounded-xl border border-slate-300 text-xs font-black text-slate-600 hover:bg-slate-50" data-filter="sector">قطاعات ووحدات (@sectorDepartments.Count)</button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between text-xs">
+                    <span id="visibleDeptCount" class="font-black text-[#34435E]">@Model.Count جهة</span>
+                </div>
+            </div>
+
+            @if (!Model.Any())
+            {
+                <div class="p-12 text-center">
+                    <div class="w-14 h-14 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+                        <span class="material-symbols-outlined text-3xl">domain_disabled</span>
+                    </div>
+                    <p class="font-black text-slate-700">لا توجد جهات بعد</p>
+                    <p class="text-sm text-slate-500 mt-1">ابدأ من زر «إضافة جهة جديدة» أعلى الصفحة.</p>
+                </div>
+            }
+            else
+            {
+                <div id="deptWorkspace" class="p-4 md:p-5 space-y-5 bg-slate-50/70">
+                    @foreach (var group in departmentGroups)
+                    {
+                        <section class="dept-group space-y-2" data-group-section="@group.Key">
+                            <div class="flex items-center justify-between px-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-8 h-8 rounded-lg bg-[#34435E]/10 text-[#34435E] flex items-center justify-center">
+                                        <span class="material-symbols-outlined text-[18px]">@group.Icon</span>
+                                    </span>
+                                    <div>
+                                        <h3 class="font-black text-slate-800 text-sm">@group.Title</h3>
+                                    </div>
+                                </div>
+                                <span class="group-count text-[11px] font-black px-2.5 py-1 rounded-full bg-white border border-slate-200 text-slate-600">@group.Departments.Count جهة</span>
+                            </div>
+
+                            <div class="space-y-2 dept-group-list">
+                                @foreach (var department in group.Departments)
+                                {
+                                    <article class="dept-card bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden hover:border-[#34435E]/30 transition"
+                                             data-name="@department.DepartmentName.ToLower()"
+                                             data-id="@department.DepartmentID"
+                                             data-group="@group.Key">
+                                        <button type="button" class="department-header w-full p-3.5 md:p-4 text-right flex items-center justify-between gap-3 hover:bg-slate-50 transition" aria-expanded="false">
+                                            <div class="flex items-center gap-3 min-w-0">
+                                                <span class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-black text-xs shrink-0">#@department.DepartmentID</span>
+                                                <div class="min-w-0">
+                                                    <div class="flex items-center gap-2 flex-wrap">
+                                                        <h4 class="font-black text-slate-900 truncate">@department.DepartmentName</h4>
+                                                        <span class="text-[9px] font-black px-2 py-0.5 rounded-full border @(group.Key == "company" ? "bg-[#34435E]/5 text-[#34435E] border-[#34435E]/20" : "bg-teal-50 text-teal-700 border-teal-200")">@(group.Key == "company" ? "إدارة/فرع" : "قطاع/وحدة")</span>
+                                                    </div>
+                                                    <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                                                        @foreach (var quota in department.PaperQuotas.Take(3))
+                                                        {
+                                                            <span class="text-[10px] text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-2 py-0.5">
+                                                                @quota.PaperTypeName: <strong class="text-slate-700">@quota.QuotaLimit</strong> @QuantityHelper.RezmaUnit(quota.QuotaLimit)
+                                                            </span>
+                                                        }
+                                                        @if (department.PaperQuotas.Count > 3)
+                                                        {
+                                                            <span class="text-[10px] text-slate-400">+@(department.PaperQuotas.Count - 3) أخرى</span>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2 shrink-0">
+                                                <span class="hidden sm:inline text-[11px] font-bold text-[#34435E]">إدارة الحصص</span>
+                                                <span class="material-symbols-outlined dept-chevron text-slate-400">expand_more</span>
+                                            </div>
+                                        </button>
+
+                                        <div class="dept-panel border-t border-slate-200 bg-slate-50 p-4 md:p-5">
+                                            <div class="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                                                <div>
+                                                    <div class="font-black text-slate-800 text-sm">الحصص الشهرية — @department.DepartmentName</div>
+                                                </div>
+                                                <span class="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 rounded-lg px-2.5 py-1">عدد أنواع الورق: @department.PaperQuotas.Count</span>
+                                            </div>
+
+                                            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                                @foreach (var quota in department.PaperQuotas)
+                                                {
+                                                    <form asp-action="UpdateDepartmentQuota" method="post" class="quota-form bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm space-y-3">
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="departmentId" value="@department.DepartmentID" />
+                                                        <input type="hidden" name="paperTypeId" value="@quota.PaperTypeID" />
+                                                        <div class="flex items-center justify-between gap-2">
+                                                            <div class="flex items-center gap-2">
+                                                                <span class="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center">
+                                                                    <span class="material-symbols-outlined text-[18px]">draft</span>
+                                                                </span>
+                                                                <div>
+                                                                    <div class="text-[10px] text-slate-400 font-bold">نوع الورق</div>
+                                                                    <div class="font-black text-slate-800">@quota.PaperTypeName</div>
+                                                                </div>
+                                                            </div>
+                                                            <span class="quota-unit text-[10px] font-black bg-slate-100 text-slate-600 rounded-full px-2 py-1">@QuantityHelper.RezmaUnit(quota.QuotaLimit)</span>
+                                                        </div>
+                                                        <label class="block">
+                                                            <span class="text-[11px] font-bold text-slate-600">الحصة الشهرية</span>
+                                                            <div class="mt-1.5 flex items-stretch gap-2">
+                                                                <input type="number" name="quotaLimit" min="0" value="@quota.QuotaLimit" inputmode="numeric" required
+                                                                       class="quota-input h-11 min-w-0 flex-1 border-2 border-slate-200 focus:border-[#34435E] focus:ring-0 rounded-xl px-3 text-base font-black text-slate-800 bg-white" />
+                                                                <button class="h-11 px-4 rounded-xl bg-[#34435E] hover:bg-[#27344b] text-white text-sm font-black flex items-center gap-1.5 transition">
+                                                                    <span class="material-symbols-outlined text-[17px]">save</span>
+                                                                    حفظ
+                                                                </button>
+                                                            </div>
+                                                        </label>
+                                                    </form>
+                                                }
+                                            </div>
+
+                                            <div class="mt-5 pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div>
+                                                </div>
+                                                <form asp-action="DeleteDepartment" method="post">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="departmentId" value="@department.DepartmentID" />
+                                                    <button type="submit"
+                                                            onclick="return confirm('حذف جهة \'@department.DepartmentName\' نهائياً؟ لن يمكن التراجع.');"
+                                                            class="h-9 px-3 rounded-lg border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-black flex items-center gap-1.5">
+                                                        <span class="material-symbols-outlined text-[17px]">delete</span>
+                                                        حذف الجهة نهائياً
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </article>
+                                }
+                            </div>
+                        </section>
+                    }
+
+                    <div id="deptNoResults" class="hidden py-12 text-center bg-white border border-dashed border-slate-300 rounded-xl">
+                        <span class="material-symbols-outlined text-4xl text-slate-300">search_off</span>
+                        <p class="font-black text-slate-600 mt-2">لا توجد جهة مطابقة</p>
+                        <p class="text-xs text-slate-400 mt-1">جرّب جزءاً من الاسم أو اختر «الكل».</p>
+                    </div>
+                </div>
+            }
+        </section>
+    </main>
+
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+            (function() {
+                var searchInput = document.getElementById('deptSearch');
+                var filterButtons = Array.from(document.querySelectorAll('.filter-chip'));
+                var cards = Array.from(document.querySelectorAll('.dept-card'));
+                var currentFilter = 'all';
+
+                function rezmaUnitLocal(value) {
+                    var n = Number(value) || 0;
+                    return n === 1 ? 'رزمة' : 'رزم';
+                }
+
+                function setCardOpen(card, open) {
+                    if (!card) return;
+                    card.classList.toggle('is-open', open);
+                    var header = card.querySelector('.department-header');
+                    if (header) header.setAttribute('aria-expanded', open ? 'true' : 'false');
+                }
+
+                document.querySelectorAll('.department-header').forEach(function(header) {
+                    header.addEventListener('click', function() {
+                        var card = this.closest('.dept-card');
+                        setCardOpen(card, !card.classList.contains('is-open'));
+                    });
+                });
+
+                document.querySelectorAll('.quota-input').forEach(function(input) {
+                    input.addEventListener('input', function() {
+                        var form = this.closest('.quota-form');
+                        var unit = form ? form.querySelector('.quota-unit') : null;
+                        if (unit) unit.textContent = rezmaUnitLocal(this.value);
+                    });
+                });
+
+                document.querySelectorAll('.edit-approver-btn').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        var block = this.closest('.approver-block');
+                        block.querySelector('.approver-locked').classList.add('hidden');
+                        var form = block.querySelector('.approver-form');
+                        form.classList.remove('hidden');
+                        form.classList.add('flex');
+                    });
+                });
+
+                document.querySelectorAll('.cancel-approver-btn').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        var block = this.closest('.approver-block');
+                        var form = block.querySelector('.approver-form');
+                        form.classList.add('hidden');
+                        form.classList.remove('flex');
+                        block.querySelector('.approver-locked').classList.remove('hidden');
+                    });
+                });
+
+                function applyDepartmentFilters() {
+                    var term = normalizeArabicSearch(searchInput?.value || '');
+                    var visibleCount = 0;
+
+                    cards.forEach(function(card) {
+                        var name = normalizeArabicSearch(card.dataset.name || '');
+                        var id = normalizeArabicSearch(card.dataset.id || '');
+                        var group = card.dataset.group || '';
+                        var groupMatch = currentFilter === 'all' || currentFilter === group;
+                        var searchMatch = !term || name.includes(term) || id.includes(term);
+                        var visible = groupMatch && searchMatch;
+                        card.classList.toggle('hidden', !visible);
+                        if (visible) visibleCount++;
+                    });
+
+                    document.querySelectorAll('.dept-group').forEach(function(section) {
+                        var visibleCards = Array.from(section.querySelectorAll('.dept-card')).filter(function(card) {
+                            return !card.classList.contains('hidden');
+                        });
+                        section.classList.toggle('hidden', visibleCards.length === 0);
+                        var count = section.querySelector('.group-count');
+                        if (count) count.textContent = visibleCards.length + ' جهة';
+                    });
+
+                    var countEl = document.getElementById('visibleDeptCount');
+                    if (countEl) countEl.textContent = visibleCount + ' جهة';
+                    document.getElementById('deptNoResults')?.classList.toggle('hidden', visibleCount > 0);
+                }
+
+                searchInput?.addEventListener('input', applyDepartmentFilters);
+
+                filterButtons.forEach(function(button) {
+                    button.addEventListener('click', function() {
+                        currentFilter = this.dataset.filter || 'all';
+                        filterButtons.forEach(function(b) { b.classList.remove('active'); });
+                        this.classList.add('active');
+                        applyDepartmentFilters();
+                    });
+                });
+
+                document.getElementById('expandAllBtn')?.addEventListener('click', function() {
+                    cards.forEach(function(card) {
+                        if (!card.classList.contains('hidden')) setCardOpen(card, true);
+                    });
+                });
+
+                document.getElementById('collapseAllBtn')?.addEventListener('click', function() {
+                    cards.forEach(function(card) { setCardOpen(card, false); });
+                });
+            })();
+    </script>
+</body>
+</html>

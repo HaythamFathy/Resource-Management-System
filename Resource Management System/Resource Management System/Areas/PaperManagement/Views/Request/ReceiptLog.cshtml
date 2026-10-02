@@ -1,0 +1,322 @@
+@model List<Resource_Management_System.Models.InventoryReceiptRow>
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "سجل استلام المخزون";
+    var paperTypes = ViewBag.PaperTypes as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    int? selectedPaperTypeId = ViewBag.SelectedPaperTypeId is int selectedId ? selectedId : null;
+    var receiptYears = ViewBag.ReceiptYears as IEnumerable<int> ?? Enumerable.Empty<int>();
+    int? selectedYear = ViewBag.SelectedYear is int selectedReceiptYear ? selectedReceiptYear : null;
+    DateTime? fromDate = ViewBag.FromDate is DateTime selectedFrom ? selectedFrom : null;
+    DateTime? toDate = ViewBag.ToDate is DateTime selectedTo ? selectedTo : null;
+    var filteredCount = ViewBag.FilteredReceiptCount is int count ? count : Model.Count;
+    var filteredQuantity = ViewBag.FilteredReceiptQuantity is int qty ? qty : Model.Sum(x => x.QuantityReceived);
+    var hasFilters = selectedPaperTypeId.HasValue || selectedYear.HasValue || fromDate.HasValue || toDate.HasValue;
+    var from = fromDate?.ToString("yyyy-MM-dd") ?? "";
+    var to = toDate?.ToString("yyyy-MM-dd") ?? "";
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr@4.6.13/dist/l10n/ar.js"></script>
+
+<style>
+    .inv-unified-header {
+        background: #34435e !important;
+        border: 1px solid #34435e !important;
+        border-radius: 20px 20px 0 0 !important;
+        box-shadow: none !important;
+    }
+
+        .inv-unified-header h2 {
+            color: white !important;
+            font-size: clamp(21px,2.2vw,27px) !important;
+            line-height: 1.4;
+        }
+
+        .inv-unified-header .bi, .inv-unified-header .material-symbols-outlined {
+            color: inherit;
+        }
+
+        .inv-unified-header > div:first-child > div:first-child > div:first-child {
+            color: white;
+        }
+
+    .inv-unified-nav {
+        border: 1px solid #dbe2ed !important;
+        background: #fff !important;
+        border-radius: 0 0 20px 20px !important;
+        padding: 11px 14px !important;
+        margin-bottom: 18px !important;
+        box-shadow: 0 2px 5px #22304708;
+    }
+
+        .inv-unified-nav > div {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 9px !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+        }
+
+        .inv-unified-nav a {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            min-height: 41px !important;
+            padding: 10px 14px !important;
+            border-radius: 12px !important;
+            border: 1px solid #d5dfeb;
+            white-space: nowrap;
+            font-size: 13px !important;
+            font-weight: 850 !important;
+        }
+
+    .inv-unified-header .inv-unified-nav {
+        margin: 0 !important;
+    }
+
+    .inv-unified-header + .inv-unified-nav {
+        margin-top: 0 !important;
+    }
+
+    @@media(max-width:600px) {
+        .inv-unified-nav a {
+            font-size: 12px !important;
+            padding: 9px 10px !important;
+        }
+    }
+</style>
+<div class="space-y-6">
+    <section class="bg-surface-white rounded-2xl border border-border-light shadow-sm overflow-hidden">
+        <div class="px-5 py-4 bg-[#34435E] text-white flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 inv-unified-header">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-2xl">move_to_inbox</span>
+                    <h2 class="text-xl sm:text-2xl font-black">سجل استلام المخزون</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="inv-unified-nav p-3 border-b border-border-light bg-neutral-50/70">
+            <div class="flex flex-wrap gap-2 text-xs font-black">
+                <a href="/PaperManagement/Request/Inventory" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-box-seam"></i>
+                    المخزن
+                </a>
+                <a href="/PaperManagement/Request/InventoryContracts" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-file-earmark-text"></i>
+                    العقود
+                </a>
+                <a href="/PaperManagement/Request/InventoryMovementLog" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-list-ul"></i>
+                    سجل حركة المخزون
+                </a>
+                <a href="/PaperManagement/Request/ReceiptLog" class="inline-flex items-center gap-2 rounded-xl bg-[#34435E] text-white px-4 py-2.5 shadow-sm">
+                    <i class="bi bi-clock-history"></i>
+                    سجل الاستلام
+                </a>
+                @* <a href="/PaperManagement/Request/InventoryYearlyLedger" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-calendar2-range"></i>
+                    التقرير السنوي
+                </a> *@
+            </div>
+        </div>
+    </section>
+
+    <form method="get"
+          id="receiptLogFilterForm"
+          action="/PaperManagement/Request/ReceiptLog"
+          data-instant-filter="true"
+          data-auto-filter="true"
+          class="bg-surface-white rounded-2xl border border-border-light shadow-sm p-4 lg:p-5">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.15fr_.8fr_1fr_1fr_auto_auto] gap-3 items-end">
+            <div>
+                <label for="receiptPaperTypeId" class="block text-xs font-bold text-on-surface mb-1.5 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm text-primary">description</span>
+                    <span>نوع الورق</span>
+                </label>
+                <select id="receiptPaperTypeId" name="paperTypeId"
+                        class="w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 text-xs font-bold focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all">
+                    <option value="">كل أنواع الورق</option>
+                    @foreach (var paper in paperTypes)
+                    {
+                        if (selectedPaperTypeId?.ToString() == paper.Value)
+                        {
+                            <option value="@paper.Value" selected>@paper.Text</option>
+                        }
+                        else
+                        {
+                            <option value="@paper.Value">@paper.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div>
+                <label for="receiptYear" class="block text-xs font-bold text-on-surface mb-1.5 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm text-primary">date_range</span>
+                    <span>السنة</span>
+                </label>
+                <select id="receiptYear" name="year"
+                        class="w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 text-xs font-bold focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all">
+                    <option value="">كل السنوات</option>
+                    @foreach (var receiptYear in receiptYears)
+                    {
+                        if (selectedYear == receiptYear)
+                        {
+                            <option value="@receiptYear" selected>@receiptYear</option>
+                        }
+                        else
+                        {
+                            <option value="@receiptYear">@receiptYear</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div>
+                <label for="receiptFromDate" class="block text-xs font-bold text-on-surface mb-1.5 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm text-primary">calendar_today</span>
+                    <span>من تاريخ</span>
+                </label>
+                <div class="relative">
+                    <input type="text" id="receiptFromDate" name="fromDate" value="@from" placeholder="اختر تاريخ البداية" readonly
+                           class="w-full border border-border-light rounded-xl p-2.5 pr-9 bg-neutral-50 text-xs font-bold focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer" />
+                    <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-base pointer-events-none">calendar_month</span>
+                </div>
+            </div>
+
+            <div>
+                <label for="receiptToDate" class="block text-xs font-bold text-on-surface mb-1.5 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm text-primary">event</span>
+                    <span>إلى تاريخ</span>
+                </label>
+                <div class="relative">
+                    <input type="text" id="receiptToDate" name="toDate" value="@to" placeholder="اختر تاريخ النهاية" readonly
+                           class="w-full border border-border-light rounded-xl p-2.5 pr-9 bg-neutral-50 text-xs font-bold focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer" />
+                    <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-base pointer-events-none">calendar_month</span>
+                </div>
+            </div>
+
+            <a href="/PaperManagement/Request/ReceiptLog"
+               data-instant-filter-reset="true"
+               class="h-[42px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-border-light bg-white hover:bg-neutral-50 text-neutral-700 px-4 text-xs font-black whitespace-nowrap transition-colors"
+               title="إعادة تعيين الفلاتر">
+                <span class="material-symbols-outlined text-base">restart_alt</span>
+                <span>إعادة تعيين</span>
+            </a>
+
+            <button type="submit"
+                    formaction="/PaperManagement/Request/ExportReceiptLogToExcel"
+                    data-no-instant-filter
+                    data-no-auto-filter
+                    class="h-[42px] inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 text-xs font-black shadow-sm whitespace-nowrap transition-colors"
+                    title="تصدير النتائج الحالية إلى Excel">
+                <span class="material-symbols-outlined text-base">table_view</span>
+                <span>Excel</span>
+            </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-neutral-100 text-xs font-black">
+            <span class="rounded-full bg-primary/5 border border-primary/10 text-primary px-3.5 py-1.5">
+                @filteredCount عملية استلام
+            </span>
+            <span class="rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 px-3.5 py-1.5">
+                الإجمالي: @filteredQuantity.ToString("N0") @QuantityHelper.RezmaUnit(filteredQuantity)
+            </span>
+            @if (hasFilters)
+            {
+                <span class="rounded-full bg-amber-50 border border-amber-100 text-amber-700 px-3.5 py-1.5">مفلتر</span>
+            }
+        </div>
+    </form>
+
+    @if (!Model.Any())
+    {
+        <div class="bg-surface-white rounded-xl p-12 text-center border border-border-light shadow-sm">
+            <i class="bi bi-inbox text-gray-300 text-6xl mb-3 block"></i>
+            <h3 class="text-lg font-bold text-gray-700">لا توجد عمليات استلام مطابقة للفلاتر الحالية</h3>
+            @if (hasFilters)
+            {
+                <a href="/PaperManagement/Request/ReceiptLog"
+                   data-instant-filter-reset="true"
+                   class="inline-flex items-center gap-1.5 mt-4 rounded-xl bg-primary text-white px-4 py-2 text-xs font-black">
+                    <span class="material-symbols-outlined text-base">restart_alt</span>
+                    عرض كل السجل
+                </a>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="bg-surface-white rounded-2xl shadow-sm border border-border-light overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-right text-base min-w-[750px]">
+                    <thead class="bg-slate-800 border-b border-slate-900 text-white text-sm lg:text-base">
+                        <tr>
+                            <th class="py-4 px-4 font-black">نوع الورق</th>
+                            <th class="py-4 px-4 font-black">الكمية المستلمة</th>
+                            <th class="py-4 px-4 font-black">العقد</th>
+                            <th class="py-4 px-4 font-black">تاريخ الاستلام</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 font-semibold">
+                        @foreach (var item in Model)
+                        {
+                            <tr class="hover:bg-slate-50/80 transition-colors">
+                                <td class="py-4 px-4">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-sm">@item.PaperTypeName</span>
+                                        <span class="font-black text-on-surface text-sm lg:text-base">ورق @item.PaperTypeName</span>
+                                    </div>
+                                </td>
+                                <td class="py-4 px-4 font-black text-base lg:text-lg text-emerald-700">
+                                    +@item.QuantityReceived.ToString("N0") @QuantityHelper.RezmaUnit(item.QuantityReceived)
+                                </td>
+                                <td class="py-4 px-4 text-sm font-bold @(item.ContractID.HasValue ? "text-primary" : "text-amber-700")">
+                                    @item.ContractDisplay
+                                </td>
+                                <td class="py-4 px-4">
+                                    <div class="font-black text-[#34435E] text-sm lg:text-base" dir="ltr">@item.ReceivedDate.ToEgyptTime().ToString("yyyy/MM/dd")</div>
+                                    <div class="text-xs text-neutral-400 font-bold" dir="ltr">@item.ReceivedDate.ToEgyptTime().ToString("HH:mm")</div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+<script>
+    (function() {
+        function initReceiptLogDatePickers() {
+            if (typeof flatpickr === 'undefined') return;
+
+            var form = document.getElementById('receiptLogFilterForm');
+            var commonConfig = {
+                locale: 'ar',
+                dateFormat: 'Y-m-d',
+                allowInput: false,
+                disableMobile: true,
+                onClose: function(selectedDates) {
+                    if (selectedDates && selectedDates.length && typeof paperScheduleInstantFilter === 'function') {
+                        paperScheduleInstantFilter(form, 120);
+                    }
+                }
+            };
+
+            flatpickr('#receiptFromDate', commonConfig);
+            flatpickr('#receiptToDate', commonConfig);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initReceiptLogDatePickers, { once: true });
+        } else {
+            initReceiptLogDatePickers();
+        }
+    })();
+</script>

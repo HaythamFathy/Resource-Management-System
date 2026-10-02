@@ -1,0 +1,107 @@
+﻿@model Resource_Management_System.Models.CreateUserViewModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="utf-8" />
+    <title>إضافة مستخدم جديد</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet" />
+    <style>
+            body {
+                font-family: 'Cairo', sans-serif;
+                background-color: #f9f9ff;
+        }</style>
+    </head>
+    <body class="p-8 min-h-screen flex items-center justify-center">
+        <div class="w-full max-w-md bg-white rounded-xl shadow p-8">
+            @if (ViewBag.FromDepartment == true)
+            {
+                <h1 class="text-xl font-bold text-gray-800 mb-2">إضافة مستخدم للقسم</h1>
+            }
+            else
+            {
+                <h1 class="text-xl font-bold text-gray-800 mb-2">إضافة مستخدم جديد</h1>
+                <p class="text-sm text-gray-500 mb-6">اختر الصلاحية المناسبة لهذا الحساب.</p>
+            }
+
+            <div asp-validation-summary="All" class="mb-4 text-red-600 text-sm"></div>
+
+            <form asp-action="Create" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="fromDepartment" value="@(ViewBag.FromDepartment == true ? "true" : "false")" />
+                <div>
+                    <label asp-for="UserName" class="block text-sm font-semibold mb-1">اسم المستخدم</label>
+                    <input asp-for="UserName" class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                </div>
+
+                <div>
+                    <label asp-for="Password" class="block text-sm font-semibold mb-1">كلمة المرور</label>
+                    <input asp-for="Password" type="password" class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                    <label asp-for="RoleID" class="block text-sm font-semibold mb-1">الصلاحية</label>
+
+                    @if (ViewBag.FromDepartment == true)
+                    {
+                        <div class="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 text-gray-600">
+                            @(Model.Roles?.FirstOrDefault(r => r.Value == Model.RoleID.ToString())?.Text ?? "قسم")
+                        </div>
+                        <input type="hidden" asp-for="RoleID" />
+                    }
+                    else
+                    {
+                        <select asp-for="RoleID" asp-items="Model.Roles" id="roleSelect"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="">-- اختر الصلاحية --</option>
+                        </select>
+                    }
+                </div>
+
+                <div>
+                    <label asp-for="DepartmentID" class="block text-sm font-semibold mb-1">القسم</label>
+
+                    @if (ViewBag.FromDepartment == true)
+                    {
+                        <div class="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 text-gray-600">
+                            @(Model.Departments?.FirstOrDefault(d => d.Value == Model.DepartmentID.ToString())?.Text ?? "")
+                        </div>
+                        <input type="hidden" asp-for="DepartmentID" />
+                    }
+                    else
+                    {
+                        <select asp-for="DepartmentID" asp-items="Model.Departments" id="departmentSelect"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="">-- اختر القسم --</option>
+                        </select>
+                    }
+                </div>
+
+                <button type="submit" class="w-full bg-[#34435E] text-white py-2.5 rounded-lg hover:bg-[#2a3549] transition font-semibold">إضافة المستخدم</button>                <a href="/UserManagement/Index" class="block text-center text-gray-500 hover:underline text-sm">إلغاء</a>
+            </form>
+        </div>
+        <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    var roleSelect = document.getElementById('roleSelect');
+                    var deptSelect = document.getElementById('departmentSelect');
+                    var deptNote = document.getElementById('noDepartmentNote');
+                    if (!roleSelect || !deptSelect || roleSelect.disabled) return; // locked case doesn't need this
+
+                    function updateDepartmentField() {
+                        var selectedText = roleSelect.options[roleSelect.selectedIndex]?.text || '';
+                        var isDepartmentRole = selectedText.trim() === 'Department';
+
+                        deptSelect.disabled = !isDepartmentRole;
+                        deptSelect.classList.toggle('bg-gray-100', !isDepartmentRole);
+                        if (deptNote) deptNote.classList.toggle('hidden', isDepartmentRole);
+                        if (!isDepartmentRole) deptSelect.value = '';
+                    }
+
+                    roleSelect.addEventListener('change', updateDepartmentField);
+                    updateDepartmentField();
+                });
+        </script>
+    </body>
+</html>

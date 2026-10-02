@@ -1,0 +1,274 @@
+@model List<Resource_Management_System.Models.DepartmentConsumptionSummary>
+@{
+    var consumptionList = Model ?? new List<Resource_Management_System.Models.DepartmentConsumptionSummary>();
+}
+
+<!-- Departments Detail List (widened, no inner scrolling so an opened row is fully visible) -->
+<div class="pt-4 border-t border-border-light">
+    <div class="flex justify-between items-center mb-2">
+        <span class="text-xs font-bold text-neutral-600">بيان تفصيلي بجميع الأقسام والإدارات المشمولة:</span>
+        <span class="text-[11px] font-semibold text-primary">إجمالي الجهات: @consumptionList.Count</span>
+    </div>
+    <div class="w-full divide-y divide-border-light border border-border-light/60 rounded-xl bg-white">
+        @{
+            var rank = 1;
+        }
+        @foreach (var dept in consumptionList.OrderBy(x => x.DepartmentID))
+        {
+            var isGroup1 = dept.DepartmentID <= 24;
+            var badgeClass = isGroup1 ? "bg-primary/10 text-primary border-primary/20" : "bg-[#58a4b0]/15 text-[#2e6f7b] border-[#58a4b0]/30";
+            var groupTag = isGroup1 ? "إدارة/فرع" : "قطاع/وحدة";
+
+            <div>
+                <button type="button" onclick="toggleDeptDetail(@dept.DepartmentID, this)" class="w-full p-2.5 flex items-center justify-between text-xs hover:bg-primary/5 transition-colors text-right">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-full bg-neutral-100 text-neutral-600 font-bold text-[10px] flex items-center justify-center">@(rank++)</span>
+                        <span class="font-bold text-neutral-400 text-[10px]">#@dept.DepartmentID</span>
+                        <span class="font-semibold text-on-surface">@dept.DepartmentName</span>
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border @badgeClass">@groupTag</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-neutral-600 font-medium">
+                        <span class="text-[11px]">A4: <strong class="text-primary">@dept.A4Quantity</strong></span>
+                        <span class="text-[11px]">A3: <strong class="text-primary">@dept.A3Quantity</strong></span>
+                        <span class="bg-primary/10 text-primary font-extrabold px-2 py-0.5 rounded-full text-[11px]">@QuantityHelper.RezmaText(dept.TotalQuantity)</span>
+                        <span class="material-symbols-outlined text-neutral-400 text-sm transition-transform duration-200 dept-chevron">expand_more</span>
+                    </div>
+                </button>
+                <div id="deptDetailPanel-@dept.DepartmentID" class="hidden bg-[#6c757d] border-t border-[#5c636a] px-3 py-3"></div>
+            </div>
+        }
+    </div>
+</div>
+
+<script>
+    var deptDetailCache = {};
+
+    function getDashboardDateRange() {
+        var from = document.getElementById('dashFromDateInput');
+        var to = document.getElementById('dashToDateInput');
+        return { from: from ? from.value : '', to: to ? to.value : '' };
+    }
+
+    function toggleDeptDetail(departmentId, btn) {
+        var panel = document.getElementById('deptDetailPanel-' + departmentId);
+        if (!panel) return;
+        var chevron = btn.querySelector('.dept-chevron');
+        var isHidden = panel.classList.contains('hidden');
+
+        document.querySelectorAll('[id^="deptDetailPanel-"]').forEach(function(p) {
+            if (p !== panel && !p.classList.contains('hidden')) {
+                p.classList.add('hidden');
+                var otherBtn = p.previousElementSibling;
+                if (otherBtn) {
+                    var otherChev = otherBtn.querySelector('.dept-chevron');
+                    if (otherChev) otherChev.style.transform = 'rotate(0deg)';
+                }
+            }
+        });
+
+        if (!isHidden) {
+            panel.classList.add('hidden');
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+            return;
+        }
+
+        panel.classList.remove('hidden');
+        if (chevron) chevron.style.transform = 'rotate(180deg)';
+
+        var dates = getDashboardDateRange();
+        var cacheKey = departmentId + '|' + dates.from + '|' + dates.to;
+
+        if (deptDetailCache[cacheKey]) {
+            panel.innerHTML = deptDetailCache[cacheKey];
+            return;
+        }
+
+        panel.innerHTML = '<div class="py-4 text-center text-xs text-white font-bold"><i class="bi bi-arrow-repeat spin text-sm"></i> جاري تحميل تفاصيل الاستهلاك والطلبات...</div>';
+
+        var qs = 'departmentId=' + encodeURIComponent(departmentId);
+        if (dates.from) qs += '&fromDate=' + encodeURIComponent(dates.from);
+        if (dates.to) qs += '&toDate=' + encodeURIComponent(dates.to);
+
+        fetch('/PaperManagement/Request/GetDepartmentDashboardDetail?' + qs, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function(res) {
+                if (!res.ok) throw new Error('فشل جلب بيانات الجهة');
+                return res.json();
+            })
+            .then(function(data) {
+                if (!data.success) throw new Error(data.message || 'حدث خطأ أثناء المعالجة');
+                var html = renderDepartmentDetailHtml(data);
+                deptDetailCache[cacheKey] = html;
+                panel.innerHTML = html;
+            })
+            .catch(function(err) {
+                panel.innerHTML = '<div class="py-3 px-4 text-center text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg font-bold">تعذر تحميل بيانات الجهة: ' + escapeHtml(err.message) + '</div>';
+            });
+    }
+
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function renderDepartmentDetailHtml(data) {
+        var rowsHtml = '';
+        if (data.requests && data.requests.length > 0) {
+            data.requests.forEach(function(r) {
+                var rowClass = r.isException ? 'bg-amber-50/70 hover:bg-amber-100/50' : 'hover:bg-neutral-50';
+                var exceptionBadge = r.isException
+                    ? '<span class="inline-flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300 font-bold px-1.5 py-0.5 rounded text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-amber-600"></span>استثناء</span>'
+                    : '';
+
+                rowsHtml += '<tr class="' + rowClass + ' transition-colors">' +
+                    '<td class="py-2 px-2 text-center border border-gray-200 font-bold text-neutral-600">#' + r.requestId + '</td>' +
+                    '<td class="py-2 px-2 border border-gray-200 font-semibold">' + escapeHtml(r.paperTypeName) + '</td>' +
+                    '<td class="py-2 px-2 text-center border border-gray-200 font-extrabold text-primary">' + r.quantity + ' <span class="text-[9px] font-normal text-neutral-400">' + rezmaUnit(r.quantity) + '</span></td>' +
+                    '<td class="py-2 px-2 text-center border border-gray-200 text-neutral-600 font-medium">' + r.date + '</td>' +
+                    '<td class="py-2 px-2 text-center border border-gray-200">' +
+                    '<div class="flex items-center justify-center gap-1.5 flex-wrap">' +
+                    '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full ' + escapeHtml(r.statusClasses) + '">' + escapeHtml(r.statusLabel) + '</span>' +
+                    exceptionBadge +
+                    '</div>' +
+                    '</td>' +
+                    '</tr>';
+            });
+        } else {
+            rowsHtml = '<tr><td colspan="5" class="text-center text-neutral-500 py-4 border border-gray-200">لا توجد طلبات مسجلة لهذه الجهة في الفترة المحددة.</td></tr>';
+        }
+
+        var quotaLimit = Number(data.quotaLimit) || 0;
+        var usedRegular = Number(data.usedQuota) || Number(data.monthRegularIssued) || Math.max(0, (Number(data.monthTotalIssued) || 0) - (Number(data.monthExceptionIssued) || 0));
+        var remainingQuota = Number(data.remainingQuota) >= 0 ? Number(data.remainingQuota) : Math.max(0, quotaLimit - usedRegular);
+        var exceptionQty = Number(data.monthExceptionIssued) || 0;
+
+        // Total scale includes Quota Limit plus any additional Exception Requests
+        var totalScale = Math.max(quotaLimit + exceptionQty, usedRegular + remainingQuota + exceptionQty);
+        if (totalScale <= 0) totalScale = 1;
+
+        var usedPct = Math.round((usedRegular / totalScale) * 100);
+        var remainingPct = Math.round((remainingQuota / totalScale) * 100);
+        var exceptionPct = Math.round((exceptionQty / totalScale) * 100);
+
+        // Normalize sum to 100% if needed
+        var sumPct = usedPct + remainingPct + exceptionPct;
+        if (sumPct > 0 && sumPct !== 100 && (quotaLimit + exceptionQty) > 0) {
+            remainingPct = Math.max(0, 100 - usedPct - exceptionPct);
+        }
+
+        var progressBarHtml = '' +
+            '<div class="bg-white rounded-xl border border-border-light p-3.5 mb-3 shadow-xs space-y-3">' +
+            '<div class="flex flex-wrap items-center justify-between gap-2">' +
+            '<div class="flex items-center gap-2">' +
+            '<div class="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">' +
+            '<span class="material-symbols-outlined text-sm">bar_chart</span>' +
+            '</div>' +
+            '<span class="text-xs font-bold text-on-surface">مؤشر رصيد الحصة الشهرية والاستثناءات</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-2 text-[11px]">' +
+            '<span class="text-neutral-500 font-medium">الحصة الشهرية المعتمدة:</span>' +
+            '<span class="font-extrabold text-primary">' + quotaLimit + ' ' + rezmaUnit(quotaLimit) + '</span>' +
+            (exceptionQty > 0
+                ? '<span class="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full text-[10px] border border-amber-300 flex items-center gap-1">' +
+                '<span class="w-1.5 h-1.5 rounded-full bg-amber-600"></span>' +
+                '+ ' + exceptionQty + ' ' + rezmaUnit(exceptionQty) + ' استثناء' +
+                '</span>'
+                : '') +
+            '</div>' +
+            '</div>' +
+
+            '<!-- Multi-Color Unified Horizontal Progress Bar -->' +
+            '<div class="quota-progress-container">' +
+            (usedRegular > 0
+                ? '<div class="quota-bar-used h-full rounded-l-full relative group flex items-center justify-center text-[9px] font-bold shadow-xs" style="width:' + usedPct + '%" title="المستخدم من الحصة: ' + usedRegular + ' ' + rezmaUnit(usedRegular) + ' (' + usedPct + '%)">' +
+                (usedPct >= 12 ? usedRegular + ' ' + rezmaUnit(usedRegular) : '') +
+                '</div>'
+                : '') +
+            (remainingQuota > 0
+                ? '<div class="quota-bar-remaining h-full ' + (usedRegular === 0 ? 'rounded-l-full ' : '') + (exceptionQty === 0 ? 'rounded-r-full ' : '') + 'relative group flex items-center justify-center text-[9px] font-bold shadow-xs" style="width:' + remainingPct + '%" title="الكمية المتبقية من الحصة: ' + remainingQuota + ' ' + rezmaUnit(remainingQuota) + ' (' + remainingPct + '%)">' +
+                (remainingPct >= 12 ? remainingQuota + ' متبقي' : '') +
+                '</div>'
+                : '') +
+            (exceptionQty > 0
+                ? '<div class="quota-bar-exception h-full rounded-r-full relative group flex items-center justify-center text-[9px] font-bold shadow-xs" style="width:' + exceptionPct + '%" title="طلبات الاستثناء المضافة: ' + exceptionQty + ' ' + rezmaUnit(exceptionQty) + ' (' + exceptionPct + '%)">' +
+                (exceptionPct >= 12 ? '+' + exceptionQty + ' استثناء' : '') +
+                '</div>'
+                : '') +
+            (usedRegular === 0 && remainingQuota === 0 && exceptionQty === 0
+                ? '<div class="w-full h-full flex items-center justify-center text-[10px] text-neutral-400 font-semibold">لا يوجد رصيد مسجل لهذه الجهة</div>'
+                : '') +
+            '</div>' +
+
+            '<!-- Legend & Indicators -->' +
+            '<div class="flex flex-wrap items-center justify-between text-[11px] pt-1 gap-2 border-t border-neutral-100">' +
+            '<div class="flex flex-wrap items-center gap-4">' +
+            '<span class="flex items-center gap-1.5 text-neutral-700 font-medium">' +
+            '<span class="w-3 h-3 rounded-md quota-legend-used shrink-0 shadow-xs"></span>' +
+            '<span>المستخدم من الحصة: <strong class="text-emerald-700 font-extrabold">' + usedRegular + '</strong> ' + rezmaUnit(usedRegular) + '</span>' +
+            '</span>' +
+            '<span class="flex items-center gap-1.5 text-neutral-700 font-medium">' +
+            '<span class="w-3 h-3 rounded-md quota-legend-remaining shrink-0 shadow-xs"></span>' +
+            '<span>الكمية المتبقية: <strong class="text-sky-700 font-extrabold">' + remainingQuota + '</strong> ' + rezmaUnit(remainingQuota) + '</span>' +
+            '</span>' +
+            (exceptionQty > 0
+                ? '<span class="flex items-center gap-1.5 text-neutral-700 font-medium">' +
+                '<span class="w-3 h-3 rounded-md quota-legend-exception shrink-0 shadow-xs"></span>' +
+                '<span>طلبات الاستثناء المضافة: <strong class="text-amber-700 font-extrabold">+' + exceptionQty + '</strong> ' + rezmaUnit(exceptionQty) + '</span>' +
+                '</span>'
+                : '<span class="flex items-center gap-1.5 text-neutral-400 text-[10px]">' +
+                '<span class="w-2.5 h-2.5 rounded-full bg-neutral-200 shrink-0"></span>' +
+                '<span>لا توجد طلبات استثناء هذا الشهر</span>' +
+                '</span>') +
+            '</div>' +
+            '<div class="flex items-center gap-1.5">' +
+            '<span class="text-[10px] font-bold text-neutral-600 bg-neutral-100 px-2.5 py-0.5 rounded-md border border-neutral-200">' +
+            'نسبة الاستهلاك: ' + (quotaLimit > 0 ? Math.min(100, Math.round((usedRegular / quotaLimit) * 100)) : 0) + '%' +
+            '</span>' +
+            '</div>' +
+            '</div>' +
+            '</div>';
+
+        return '' +
+            '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">' +
+            '<div class="bg-white rounded-lg border border-border-light p-2 text-center shadow-2xs">' +
+            '<p class="text-[10px] text-neutral-500 mb-0.5">الحصة الشهرية</p>' +
+            '<p class="font-extrabold text-primary text-sm">' + quotaLimit + ' <span class="text-[10px] font-normal text-neutral-400">' + rezmaUnit(quotaLimit) + '</span></p>' +
+            '</div>' +
+            '<div class="bg-white rounded-lg border border-border-light p-2 text-center shadow-2xs">' +
+            '<p class="text-[10px] text-neutral-500 mb-0.5">المستخدم من الحصة</p>' +
+            '<p class="font-extrabold text-emerald-600 text-sm">' + usedRegular + ' <span class="text-[10px] font-normal text-neutral-400">' + rezmaUnit(usedRegular) + '</span></p>' +
+            '</div>' +
+            '<div class="rounded-lg border border-sky-300 bg-sky-100 p-2 text-center shadow-2xs">' +
+            '<p class="text-[10px] text-sky-800 font-semibold mb-0.5">الكمية المتبقية</p>' +
+            '<p class="font-extrabold text-sky-700 text-sm">' + remainingQuota + ' <span class="text-[10px] font-normal text-sky-500">' + rezmaUnit(remainingQuota) + '</span></p>' +
+            '</div>' +
+            '<div class="rounded-lg border border-amber-300 bg-amber-100 p-2 text-center shadow-2xs">' +
+            '<p class="text-[10px] text-amber-800 font-semibold mb-0.5">طلبات استثناء</p>' +
+            '<p class="font-extrabold text-amber-700 text-sm">+' + exceptionQty + ' <span class="text-[10px] font-normal text-amber-500">' + rezmaUnit(exceptionQty) + '</span></p>' +
+            '</div>' +
+            '</div>' +
+            progressBarHtml +
+            '<div class="flex items-center justify-between mb-1.5">' +
+            '<span class="text-[11px] font-extrabold text-white">سجل طلبات الجهة</span>' +
+            '<span class="text-[10px] text-white/80 font-semibold">عرض آخر ' + (data.requests ? data.requests.length : 0) + ' من ' + data.count + ' طلب</span>' +
+            '</div>' +
+            '<div class="w-full rounded-lg border border-gray-200 bg-white overflow-hidden shadow-2xs">' +
+            '<table class="w-full text-[11px]">' +
+            '<thead class="bg-neutral-100 text-neutral-600"><tr>' +
+            '<th class="py-1.5 px-2 border border-gray-200 text-center">رقم الطلب</th>' +
+            '<th class="py-1.5 px-2 border border-gray-200">نوع الورق</th>' +
+            '<th class="py-1.5 px-2 border border-gray-200 text-center">الكمية</th>' +
+            '<th class="py-1.5 px-2 border border-gray-200 text-center">التاريخ</th>' +
+            '<th class="py-1.5 px-2 border border-gray-200 text-center">الحالة والملاحظات</th>' +
+            '</tr></thead>' +
+            '<tbody>' + rowsHtml + '</tbody>' +
+            '</table>' +
+            '</div>';
+    }
+</script>

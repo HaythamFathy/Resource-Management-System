@@ -1,0 +1,826 @@
+@model Resource_Management_System.Models.DashboardViewModel
+@{
+    ViewData["Title"] = "لوحة متابعة منظومة الورق";
+    var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+    var isApprover = userRole == Resource_Management_System.Common.Roles.Approver;
+    var canManagePaper = userRole == Resource_Management_System.Common.Roles.IT || userRole == Resource_Management_System.Common.Roles.Admin;
+    var exceptionRate = Model.TotalRequestCount > 0
+        ? Math.Round(Model.ExceptionRequestCount * 100d / Model.TotalRequestCount, 1)
+        : 0;
+
+    // Warehouse cards use one reconciled period: carried-forward stock + receipts,
+    // issued quantity in the active contract (or zero after closure), and live stock.
+    // Do not reset physical stock when a contract closes or a new contract begins.
+    var a4Inventory = Model.InventoryList?.FirstOrDefault(x => string.Equals(x.PaperTypeName, "A4", System.StringComparison.OrdinalIgnoreCase));
+    var a3Inventory = Model.InventoryList?.FirstOrDefault(x => string.Equals(x.PaperTypeName, "A3", System.StringComparison.OrdinalIgnoreCase));
+    var a4Stock = a4Inventory?.CurrentStock ?? 0;
+    var a3Stock = a3Inventory?.CurrentStock ?? 0;
+    var hasActiveDashboardContract = ViewBag.DashboardHasActiveInventoryContract is bool dashboardContractFlag ? dashboardContractFlag : Model.InventoryList.Any(x => x.HasActiveContract);
+    var hasClosedDashboardContract = ViewBag.DashboardHasClosedInventoryContract is bool closedContractFlag && closedContractFlag;
+    var hasDashboardContractFigures = hasActiveDashboardContract || hasClosedDashboardContract;
+    var activeDashboardContractDisplay = ViewBag.DashboardActiveInventoryContractDisplay as string ?? "لا يوجد عقد نشط";
+    // V37: the three values must reconcile in every filter: available = issued + stock.
+    // Active contract: issued quantities belong to the current contract only.
+    // Closed / not-yet-started / no contract: carry forward the live stock and show zero issued.
+    // This changes dashboard presentation ONLY, not inventory or contract transactions.
+    long warehouseIssued = hasActiveDashboardContract
+        ? Model.InventoryList.Sum(x => (long)x.IssuedUnderActiveContract) : 0L;
+    long a4WarehouseIssued = hasActiveDashboardContract ? (a4Inventory?.IssuedUnderActiveContract ?? 0) : 0L;
+    long a3WarehouseIssued = hasActiveDashboardContract ? (a3Inventory?.IssuedUnderActiveContract ?? 0) : 0L;
+    long totalAvailable = (long)Model.TotalCurrentStock + warehouseIssued;
+    long a4Available = (long)a4Stock + a4WarehouseIssued;
+    long a3Available = (long)a3Stock + a3WarehouseIssued;
+    var warehousePeriodLabel = hasActiveDashboardContract
+        ? $"شامل الرصيد المرحّل والوارد خلال العقد الحالي: {activeDashboardContractDisplay}"
+        : (hasClosedDashboardContract
+            ? "الرصيد المرحّل بعد إغلاق العقد"
+            : "الرصيد الفعلي بالمخزن قبل بدء عقد جديد");
+}
+
+<style>
+    .dashboard-command-card {
+        box-shadow: 0 8px 28px rgba(52, 67, 94, 0.08);
+    }
+
+    .dashboard-stat-card {
+        transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+
+        .dashboard-stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(52, 67, 94, .09);
+            border-color: rgba(52, 67, 94, .22);
+        }
+
+    .dashboard-pipeline-line {
+        background: linear-gradient(90deg, #f59e0b 0%, #8b5cf6 30%, #3b82f6 55%, #10b981 80%, #6b7280 100%);
+    }
+
+    .dashboard-quick-target {
+        scroll-margin-top: 8rem;
+    }
+
+    /* Large, obvious stock choices: intentionally simple for non-technical users. */
+    .dashboard-stock-choice {
+        min-width: 3.15rem;
+        min-height: 2.25rem;
+        border: 1px solid #bae6fd;
+        border-radius: .65rem;
+        background: #fff;
+        color: #075985;
+        font-weight: 900;
+        font-size: .72rem;
+        line-height: 1;
+        transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+
+        .dashboard-stock-choice:hover {
+            background: #f0f9ff;
+            border-color: #7dd3fc;
+        }
+
+        .dashboard-stock-choice[aria-pressed="true"] {
+            background: #0369a1;
+            border-color: #0369a1;
+            color: #fff;
+            box-shadow: 0 3px 10px rgba(3, 105, 161, .18);
+        }
+
+        .dashboard-stock-choice:focus-visible {
+            outline: 3px solid rgba(14, 165, 233, .28);
+            outline-offset: 2px;
+        }
+</style>
+
+<!-- Chart.js used by the retained dashboard charts and the department-comparison modal.
+     This used to arrive indirectly from the removed consumption-chart partial; load it
+     explicitly here so removing that card never blanks the charts that remain. -->
+<script src="~/lib/chartjs/chart.umd.min.js"></script>
+
+<div class="space-y-5">
+    @* @if (Model.InventoryList.Any(x => x.IsLowStock))
+    {
+        <div role="alert" class="bg-red-50 border border-red-300 text-red-900 p-4 rounded-xl flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <i class="bi bi-exclamation-triangle-fill text-xl"></i>
+                <div>
+                    <strong>تنبيه مخزون:</strong>
+                    @string.Join("، ", Model.InventoryList.Where(x => x.IsLowStock).Select(x => $"{x.PaperTypeName} ({x.CurrentStock})"))
+                </div>
+            </div>
+            @if (canManagePaper)
+            {
+                <a href="/PaperManagement/Request/Inventory" class="text-xs font-extrabold bg-red-100 hover:bg-red-200 border border-red-200 rounded-lg px-3 py-1.5 whitespace-nowrap">فتح المخزن</a>
+            }
+        </div>
+    } *@
+
+    <!-- Management command centre header -->
+    <section class="dashboard-command-card overflow-hidden rounded-2xl border border-[#34435E]/20 bg-white">
+        <div class="bg-[#34435E] px-5 py-5 lg:px-6 text-white relative overflow-hidden">
+            <div class="absolute -left-16 -top-20 w-56 h-56 rounded-full bg-white/5"></div>
+            <div class="absolute left-36 -bottom-20 w-36 h-36 rounded-full bg-[#58a4b0]/20"></div>
+
+            <div class="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2 mb-1">
+                        <h1 class="text-xl lg:text-2xl font-black">مركز متابعة منظومة توزيع الورق</h1>
+                        <span class="rounded-full bg-white/10 border border-white/15 px-2.5 py-1 text-xs font-extrabold">صورة كاملة للنظام</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2" aria-label="الإجراءات الرئيسية">
+                    @if (isApprover)
+                    {
+                        <a href="/PaperManagement/Request/Pending" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#34435E] hover:bg-neutral-100 px-4 py-2.5 text-sm font-black shadow-sm">
+                            <span class="material-symbols-outlined text-lg">approval</span>
+                            طلبات الاعتماد
+                            @if (Model.PendingApproverCount > 0)
+                            {
+                                <span class="min-w-5 h-5 px-1 rounded-full bg-violet-100 text-violet-800 flex items-center justify-center text-xs">@Model.PendingApproverCount</span>
+                            }
+                        </a>
+                    }
+                    else
+                    {
+                        <a href="/PaperManagement/Request/ReviewQueue" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#34435E] hover:bg-neutral-100 px-4 py-2.5 text-sm font-black shadow-sm">
+                            <span class="material-symbols-outlined text-lg">fact_check</span>
+                            مراجعة الطلبات
+                            @if (Model.PendingITCount > 0)
+                            {
+                                <span class="min-w-5 h-5 px-1 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs">@Model.PendingITCount</span>
+                            }
+                        </a>
+                        <a href="/PaperManagement/Request/IssueQueue" class="inline-flex items-center gap-2 rounded-xl bg-[#58a4b0] hover:bg-[#4d929d] text-white px-4 py-2.5 text-sm font-black shadow-sm">
+                            <span class="material-symbols-outlined text-lg">inventory_2</span>
+                            صرف الطلبات
+                            @if (Model.ApprovedCount > 0)
+                            {
+                                <span class="min-w-5 h-5 px-1 rounded-full bg-white/20 flex items-center justify-center text-xs">@Model.ApprovedCount</span>
+                            }
+                        </a>
+                    }
+                    <button type="button" id="openDepartmentLookupModalBtn"
+                            title="الاستعلام عن جهة"
+                            aria-label="فتح الاستعلام عن جهة والمقارنة"
+                            class="w-11 h-11 inline-flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white shadow-sm transition-all">
+                        <span class="material-symbols-outlined text-xl">manage_search</span>
+                    </button>
+                    @if (canManagePaper)
+                    {
+                        <a href="/PaperManagement/Request/Reports" class="inline-flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white px-3.5 py-2.5 text-sm font-black">
+                            <span class="material-symbols-outlined text-base">analytics</span>
+                            التقارير
+                        </a>
+                    }
+                    @if (userRole == Resource_Management_System.Common.Roles.Admin)
+                    {
+                        <a href="/PaperManagement/DepartmentManagement/Index" class="inline-flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white px-3.5 py-2 text-xs font-black">
+                            <span class="material-symbols-outlined text-base">domain</span>
+                            إدارة الجهات
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 lg:p-5 space-y-4">
+            <!-- Warehouse summary + issued-by-group card + stock movement pie chart -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <!-- Right-most in RTL: warehouse summary, spans half the row -->
+                <div id="dashboardCurrentStockCard"
+                     class="dashboard-stat-card sm:col-span-2 xl:col-span-2 rounded-xl border border-sky-200 bg-sky-50/40 p-4"
+                     data-available-total="@totalAvailable"
+                     data-available-a4="@a4Available"
+                     data-available-a3="@a3Available"
+                     data-stock-total="@Model.TotalCurrentStock"
+                     data-stock-a4="@a4Stock"
+                     data-stock-a3="@a3Stock"
+                     data-issued-year-total="@warehouseIssued"
+                     data-issued-year-a4="@a4WarehouseIssued"
+                     data-issued-year-a3="@a3WarehouseIssued">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="text-sm font-black text-sky-950">المخزن</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span id="dashboardCurrentStockScope" class="text-[11px] font-bold text-sky-700 bg-white/80 border border-sky-200 rounded-full px-2 py-1">كل الأنواع</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-4">
+                        <div class="rounded-xl bg-white/90 border border-sky-100 px-3.5 py-3.5">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-base text-sky-600">inventory</span>
+                                <p class="text-[11px] font-black text-neutral-600">إجمالي ما تم توريده</p>
+                            </div>
+                            <strong id="dashboardAvailableValue" class="block text-2xl font-black text-sky-700 mt-2">@totalAvailable @(totalAvailable == 1 ? "رزمة" : "رزم")</strong>
+                        </div>
+                        <div class="rounded-xl bg-white/90 border border-emerald-100 px-3.5 py-3.5">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-base text-emerald-600">outbox</span>
+                                <p class="text-[11px] font-black text-neutral-600">إجمالي المصروف</p>
+                            </div>
+                            <strong id="dashboardIssuedYearValue" class="block text-2xl font-black text-emerald-700 mt-2">@warehouseIssued @(warehouseIssued == 1 ? "رزمة" : "رزم")</strong>
+                        </div>
+                        <div class="rounded-xl bg-white/90 border border-indigo-100 px-3.5 py-3.5">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-base text-indigo-600">inventory_2</span>
+                                <p class="text-[11px] font-black text-neutral-600">الرصيد الحالي</p>
+                            </div>
+                            <strong id="dashboardCurrentStockValue" class="block text-2xl font-black text-indigo-700 mt-2">@Model.TotalCurrentStock @QuantityHelper.RezmaUnit(Model.TotalCurrentStock)</strong>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 pt-3 border-t border-sky-200/70">
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-[11px] font-extrabold text-sky-900">اعرض النوع</span>
+                            <div class="grid grid-cols-3 gap-1.5 w-52 max-w-full" role="group" aria-label="اختر نوع الورق لعرض بيانات المخزن والمصروف">
+                                <button type="button" class="dashboard-stock-choice" data-stock-choice="all" aria-pressed="true">الكل</button>
+                                <button type="button" class="dashboard-stock-choice" data-stock-choice="a4" aria-pressed="false">A4</button>
+                                <button type="button" class="dashboard-stock-choice" data-stock-choice="a3" aria-pressed="false">A3</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Middle: issued quantities by organization group -->
+                <div class="dashboard-stat-card sm:col-span-1 xl:col-span-1 rounded-xl border border-violet-200 bg-violet-50/30 p-4 flex flex-col justify-center gap-3">
+                    <div class="rounded-xl bg-white/90 border border-indigo-100 px-3.5 py-4">
+                        <p class="text-[11px] leading-5 font-black text-indigo-950">ما تم صرفه لإدارات وأفرع الشركة</p>
+                        <div class="flex items-baseline gap-1.5 mt-2">
+                            <strong class="text-2xl font-black text-indigo-700">@Model.CompanyBranchesIssuedYearQuantity</strong>
+                            <span class="text-xs font-bold text-indigo-700/80">@QuantityHelper.RezmaUnit(Model.CompanyBranchesIssuedYearQuantity)</span>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl bg-white/90 border border-violet-100 px-3.5 py-4">
+                        <p class="text-[11px] leading-5 font-black text-violet-950">ما تم صرفه للقطاعات والوحدات التابعة</p>
+                        <div class="flex items-baseline gap-1.5 mt-2">
+                            <strong class="text-2xl font-black text-violet-700">@Model.SectorsUnitsIssuedYearQuantity</strong>
+                            <span class="text-xs font-bold text-violet-700/80">@QuantityHelper.RezmaUnit(Model.SectorsUnitsIssuedYearQuantity)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Left: stock movement chart only -->
+                <div class="dashboard-stat-card sm:col-span-1 xl:col-span-1 rounded-xl border border-indigo-200 bg-indigo-50/30 p-3 flex items-center justify-center">
+                    <div class="relative w-full h-56 sm:h-64 min-h-[14rem]">
+                        <canvas id="dashboardStockMovementPieChart" aria-label="رسم دائري يوضح المتبقي والمصروف" role="img"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Operational status strip -->
+            <div class="rounded-xl border border-neutral-200 bg-[#f8f9fa] p-3.5">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                        <p class="text-xs font-black text-on-surface">خط سير الطلبات الآن</p>
+                    </div>
+                    <span class="text-xs font-bold text-neutral-500">@Model.DepartmentCount جهة مسجلة</span>
+                </div>
+                <div class="dashboard-pipeline-line h-1 rounded-full mb-3 opacity-70"></div>
+                <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
+                    @if (canManagePaper)
+                    {
+                        <a href="/PaperManagement/Request/ReviewQueue" class="rounded-lg bg-white border border-neutral-200 hover:border-amber-300 p-2.5 transition-colors">
+                            <p class="text-[11px] font-bold text-neutral-500">مراجعة أمين العهدة</p><p class="text-lg font-black text-amber-600">@Model.PendingITCount</p>
+                        </a>
+                    }
+                    else
+                    {
+                        <div class="rounded-lg bg-white border border-neutral-200 p-2.5">
+                            <p class="text-[11px] font-bold text-neutral-500">مراجعة أمين العهدة</p><p class="text-lg font-black text-amber-600">@Model.PendingITCount</p>
+                        </div>
+                    }
+                    <div class="rounded-lg bg-white border border-neutral-200 p-2.5">
+                        <p class="text-[11px] font-bold text-neutral-500">لدى نائب مدير إدارة النظم</p><p class="text-lg font-black text-violet-600">@Model.PendingApproverOneCount</p>
+                    </div>
+                    <div class="rounded-lg bg-white border border-neutral-200 p-2.5">
+                        <p class="text-[11px] font-bold text-neutral-500">لدى نائب مدير إدارة النظم</p><p class="text-lg font-black text-fuchsia-600">@Model.PendingApproverTwoCount</p>
+                    </div>
+                    @if (canManagePaper)
+                    {
+                        <a href="/PaperManagement/Request/IssueQueue" class="rounded-lg bg-white border border-neutral-200 hover:border-blue-300 p-2.5 transition-colors">
+                            <p class="text-[11px] font-bold text-neutral-500">جاهز للصرف</p><p class="text-lg font-black text-blue-600">@Model.ApprovedCount</p>
+                        </a>
+                    }
+                    else
+                    {
+                        <div class="rounded-lg bg-white border border-neutral-200 p-2.5">
+                            <p class="text-[11px] font-bold text-neutral-500">جاهز للصرف</p><p class="text-lg font-black text-blue-600">@Model.ApprovedCount</p>
+                        </div>
+                    }
+                    <div class="rounded-lg bg-white border border-neutral-200 p-2.5">
+                        <p class="text-[11px] font-bold text-neutral-500">طلبات تم صرفها</p><p class="text-lg font-black text-emerald-600">@Model.IssuedRequestCount</p>
+                    </div>
+                    <div class="rounded-lg bg-white border border-neutral-200 p-2.5">
+                        <p class="text-[11px] font-bold text-neutral-500">طلبات مرفوضة</p><p class="text-lg font-black text-red-600">@Model.RejectedCount</p>
+                    </div>
+                    <div class="rounded-lg bg-white border border-neutral-200 p-2.5">
+                        <p class="text-[11px] font-bold text-neutral-500">طلبات استثناء</p><p class="text-lg font-black text-orange-600">@Model.ExceptionRequestCount</p><span class="text-[11px] text-neutral-400">@exceptionRate% من الطلبات</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Today / month pulse -->
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2.5">
+                <div class="rounded-xl border border-neutral-200 px-3.5 py-3 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><span class="material-symbols-outlined text-lg">today</span></div>
+                    <div><p class="text-[11px] text-neutral-500 font-bold">المصروف اليوم</p><p class="text-sm font-black text-on-surface">@Model.IssuedTodayQuantity @QuantityHelper.RezmaUnit(Model.IssuedTodayQuantity) <span class="font-semibold text-neutral-400 text-xs">(@Model.IssuedTodayCount طلب)</span></p></div>
+                </div>
+                <div class="rounded-xl border border-neutral-200 px-3.5 py-3 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center"><span class="material-symbols-outlined text-lg">calendar_month</span></div>
+                    <div><p class="text-xs text-neutral-500 font-bold">المصروف هذا الشهر</p><p class="text-sm font-black text-on-surface">@Model.IssuedMonthQuantity @QuantityHelper.RezmaUnit(Model.IssuedMonthQuantity) <span class="font-semibold text-neutral-400 text-xs">(@Model.IssuedMonthCount طلب)</span></p></div>
+                </div>
+                <div class="rounded-xl border border-neutral-200 px-3.5 py-3 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center"><span class="material-symbols-outlined text-lg">warning</span></div>
+                    <div><p class="text-xs text-neutral-500 font-bold">استثناءات تم صرفها</p><p class="text-sm font-black text-on-surface">@Model.ExceptionIssuedQuantity @QuantityHelper.RezmaUnit(Model.ExceptionIssuedQuantity)</p></div>
+                </div>
+                <div class="rounded-xl border border-neutral-200 px-3.5 py-3 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg @(Model.LowStockCount > 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600") flex items-center justify-center"><span class="material-symbols-outlined text-lg">health_and_safety</span></div>
+                    <div>
+                        <p class="text-xs text-neutral-500 font-bold">حالة المخزن</p>
+                        <p class="text-sm font-black text-on-surface">
+                            @if (Model.LowStockCount > 0)
+                            {
+                                @string.Join(" • ", Model.InventoryList
+                                    .Where(x => x.IsLowStock)
+                                    .Select(x => $"{x.PaperTypeName}: {x.CurrentStock} {(x.CurrentStock == 1 ? "رزمة" : "رزم")}"))
+                            }
+                            else
+                            {
+                                @:المخزون داخل الحدود
+                            }
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Department lookup/comparison is intentionally kept out of the dashboard flow.
+         The header icon opens this focused workspace in a large modal. -->
+    <div id="departmentLookupModal"
+         class="fixed inset-0 z-[100] hidden items-center justify-center p-3 sm:p-5"
+         role="dialog" aria-modal="true" aria-label="الاستعلام عن جهة والمقارنة">
+        <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-[1px]" data-department-lookup-backdrop></div>
+        <div class="relative z-10 w-full max-w-7xl max-h-[92vh] overflow-hidden rounded-3xl bg-neutral-50 shadow-2xl border border-white/20 flex flex-col">
+            <div class="shrink-0 px-4 py-3 bg-[#34435E] text-white flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-xl">manage_search</span>
+                    <div>
+                        <p class="text-sm font-black">الاستعلام عن جهة والمقارنة</p>
+                    </div>
+                </div>
+                <button type="button" id="closeDepartmentLookupModalBtn"
+                        aria-label="إغلاق الاستعلام عن جهة"
+                        class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 inline-flex items-center justify-center transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="overflow-y-auto p-3 sm:p-5">
+                @await Html.PartialAsync("_DashboardDepartmentQuickDeskPartial", Model)
+            </div>
+        </div>
+    </div>
+
+    <!-- Department issued distribution split into two charts: الإدارات والأفرع & القطاعات والوحدات -->
+    @{
+        var issuedYearAll = Model.DepartmentIssuedYear ?? new List<Resource_Management_System.Models.DepartmentConsumptionSummary>();
+        var companyBranchesYearList = issuedYearAll
+            .Where(x => x.DepartmentID <= 24)
+            .OrderByDescending(x => x.TotalQuantity)
+            .ThenBy(x => x.DepartmentName)
+            .ToList();
+        var sectorsUnitsYearList = issuedYearAll
+            .Where(x => x.DepartmentID > 24)
+            .OrderByDescending(x => x.TotalQuantity)
+            .ThenBy(x => x.DepartmentName)
+            .ToList();
+
+        var companyBranchesActiveYear = companyBranchesYearList.Where(x => x.TotalQuantity > 0).ToList();
+        var sectorsUnitsActiveYear = sectorsUnitsYearList.Where(x => x.TotalQuantity > 0).ToList();
+
+        var companyBranchesTotal = companyBranchesYearList.Sum(x => x.TotalQuantity);
+        var sectorsUnitsTotal = sectorsUnitsYearList.Sum(x => x.TotalQuantity);
+    }
+    <section id="departmentIssuedDistribution" class="w-full bg-surface-white p-5 rounded-2xl border border-border-light shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-border-light">
+            <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <h3 class="font-black text-on-surface flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">pie_chart</span>
+                        المصروف على الجهات
+                    </h3>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <!-- 1. Chart: الإدارات والأفرع -->
+            <div class="rounded-2xl border border-indigo-100/90 bg-gradient-to-b from-indigo-50/30 via-white to-white p-4 sm:p-5 flex flex-col justify-between space-y-4 shadow-sm hover:border-indigo-200 transition-colors">
+                <div class="flex items-center justify-between gap-2 pb-3 border-b border-indigo-100/70">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-lg">apartment</span>
+                        </span>
+                        <div>
+                            <h4 class="font-black text-sm text-indigo-950">الإدارات والأفرع</h4>
+                            <p class="text-[11px] font-semibold text-neutral-400">أولاً: الجهات من 1 إلى 24 (@companyBranchesActiveYear.Count جهة صَرفت)</p>
+                        </div>
+                    </div>
+                    <span class="inline-flex items-baseline gap-1 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-800 px-3 py-1 text-xs font-black">
+                        <strong>@companyBranchesTotal</strong>
+                        <span class="text-[10px] font-bold text-indigo-600">@QuantityHelper.RezmaUnit(companyBranchesTotal)</span>
+                    </span>
+                </div>
+
+                @if (companyBranchesActiveYear.Any())
+                {
+                    <div class="flex flex-col items-center gap-4 w-full" dir="ltr">
+                        <div class="relative w-full h-[320px] sm:h-[360px] shrink-0 transition-transform duration-300 hover:scale-[1.006]">
+                            <canvas id="companyBranchesDistributionChart"></canvas>
+                        </div>
+
+                        <div id="companyBranchesHoverPanel" dir="rtl" class="w-full rounded-2xl border border-neutral-200 bg-white p-4 min-h-[105px] flex flex-col justify-center transition-all duration-200 shadow-[0_4px_16px_rgba(52,67,94,0.05)]">
+                            <div class="flex items-center justify-between gap-2 border-b border-neutral-100 pb-2 mb-2">
+                                <span class="text-[11px] font-black text-indigo-700 flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-xs">info</span>
+                                    تفاصيل الجزء المحدد
+                                </span>
+                                <span id="companyBranchesHoverShare" class="text-[11px] font-bold text-neutral-500">إجمالي مصروف الإدارات والأفرع</span>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <p id="companyBranchesHoverName" class="text-sm font-black text-[#34435E] truncate min-h-[22px]">مرر المؤشر على أي جزء</p>
+                                <p id="companyBranchesHoverValue" class="text-xl font-black text-indigo-700 whitespace-nowrap shrink-0">@companyBranchesTotal @QuantityHelper.RezmaUnit(companyBranchesTotal)</p>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 py-12 text-center text-sm font-bold text-indigo-400">
+                        لا توجد كميات منصرفة للإدارات والأفرع حتى الآن.
+                    </div>
+                }
+            </div>
+
+            <!-- 2. Chart: القطاعات والوحدات -->
+            <div class="rounded-2xl border border-violet-100/90 bg-gradient-to-b from-violet-50/30 via-white to-white p-4 sm:p-5 flex flex-col justify-between space-y-4 shadow-sm hover:border-violet-200 transition-colors">
+                <div class="flex items-center justify-between gap-2 pb-3 border-b border-violet-100/70">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-lg">account_tree</span>
+                        </span>
+                        <div>
+                            <h4 class="font-black text-sm text-violet-950">القطاعات والوحدات</h4>
+                            <p class="text-[11px] font-semibold text-neutral-400">ثانياً: الجهات 25 وما فوق (@sectorsUnitsActiveYear.Count جهة صَرفت)</p>
+                        </div>
+                    </div>
+                    <span class="inline-flex items-baseline gap-1 rounded-full bg-violet-50 border border-violet-200/80 text-violet-800 px-3 py-1 text-xs font-black">
+                        <strong>@sectorsUnitsTotal</strong>
+                        <span class="text-[10px] font-bold text-violet-600">@QuantityHelper.RezmaUnit(sectorsUnitsTotal)</span>
+                    </span>
+                </div>
+
+                @if (sectorsUnitsActiveYear.Any())
+                {
+                    <div class="flex flex-col items-center gap-4 w-full" dir="ltr">
+                        <div class="relative w-full h-[320px] sm:h-[360px] shrink-0 transition-transform duration-300 hover:scale-[1.006]">
+                            <canvas id="sectorsUnitsDistributionChart"></canvas>
+                        </div>
+
+                        <div id="sectorsUnitsHoverPanel" dir="rtl" class="w-full rounded-2xl border border-neutral-200 bg-white p-4 min-h-[105px] flex flex-col justify-center transition-all duration-200 shadow-[0_4px_16px_rgba(52,67,94,0.05)]">
+                            <div class="flex items-center justify-between gap-2 border-b border-neutral-100 pb-2 mb-2">
+                                <span class="text-[11px] font-black text-violet-700 flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-xs">info</span>
+                                    تفاصيل الجزء المحدد
+                                </span>
+                                <span id="sectorsUnitsHoverShare" class="text-[11px] font-bold text-neutral-500">إجمالي مصروف القطاعات والوحدات</span>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <p id="sectorsUnitsHoverName" class="text-sm font-black text-[#34435E] truncate min-h-[22px]">مرر المؤشر على أي جزء</p>
+                                <p id="sectorsUnitsHoverValue" class="text-xl font-black text-violet-700 whitespace-nowrap shrink-0">@sectorsUnitsTotal @QuantityHelper.RezmaUnit(sectorsUnitsTotal)</p>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="rounded-xl border border-dashed border-violet-200 bg-violet-50/30 py-12 text-center text-sm font-bold text-violet-400">
+                        لا توجد كميات منصرفة للقطاعات والوحدات حتى الآن.
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+
+    <!-- Decision-support analytics -->
+    @await Html.PartialAsync("_DashboardDecisionAnalyticsPartial", Model)
+
+ 
+</div>
+
+<script>
+    (function() {
+        var card = document.getElementById('dashboardCurrentStockCard');
+        if (!card) return;
+
+        var availableEl = document.getElementById('dashboardAvailableValue');
+        var stockEl = document.getElementById('dashboardCurrentStockValue');
+        var issuedYearEl = document.getElementById('dashboardIssuedYearValue');
+        var scopeEl = document.getElementById('dashboardCurrentStockScope');
+        var pieCanvas = document.getElementById('dashboardStockMovementPieChart');
+        var buttons = Array.prototype.slice.call(card.querySelectorAll('[data-stock-choice]'));
+        var stockMovementChart = null;
+
+        var values = {
+            all: {
+                available: Number(card.dataset.availableTotal || 0),
+                stock: Number(card.dataset.stockTotal || 0),
+                issuedYear: Number(card.dataset.issuedYearTotal || 0),
+                label: 'كل الأنواع'
+            },
+            a4: {
+                available: Number(card.dataset.availableA4 || 0),
+                stock: Number(card.dataset.stockA4 || 0),
+                issuedYear: Number(card.dataset.issuedYearA4 || 0),
+                label: 'A4'
+            },
+            a3: {
+                available: Number(card.dataset.availableA3 || 0),
+                stock: Number(card.dataset.stockA3 || 0),
+                issuedYear: Number(card.dataset.issuedYearA3 || 0),
+                label: 'A3'
+            }
+        };
+
+        function unitText(n) {
+            return Number(n) === 1 ? 'رزمة' : 'رزم';
+        }
+
+        function numberWithUnit(n) {
+            return Number(n).toLocaleString('en-US') + ' ' + unitText(n);
+        }
+
+        function percentText(part, total) {
+            if (!total) return '0%';
+            return ((Number(part || 0) / total) * 100).toFixed(1) + '%';
+        }
+
+        if (pieCanvas && typeof Chart !== 'undefined') {
+            stockMovementChart = new Chart(pieCanvas, {
+                type: 'pie',
+                data: {
+                    labels: ['المتبقي', 'المصروف'],
+                    datasets: [{
+                        data: [values.all.stock, values.all.issuedYear],
+                        // Professional dashboard palette: deep navy for remaining stock, muted teal for issued stock.
+                        backgroundColor: ['#34435E', '#58A4B0'],
+                        hoverBackgroundColor: ['#2B3950', '#438D99'],
+                        borderColor: '#F8FAFC',
+                        borderWidth: 3,
+                        hoverBorderColor: '#F8FAFC',
+                        hoverBorderWidth: 4,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    locale: 'en-US',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 550,
+                        easing: 'easeOutQuart'
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            titleFont: { family: 'Cairo', size: 12, weight: 'bold' },
+                            bodyFont: { family: 'Cairo', size: 12, weight: 'bold' },
+                            callbacks: {
+                                label: function(context) {
+                                    var currentValues = context.dataset.data.map(function(value) { return Number(value || 0); });
+                                    var total = currentValues.reduce(function(sum, value) { return sum + value; }, 0);
+                                    var value = Number(context.raw || 0);
+                                    return ' ' + context.label + ': ' + numberWithUnit(value) + ' (' + percentText(value, total) + ')';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderStock(scope) {
+            var item = values[scope] || values.all;
+
+            availableEl.textContent = numberWithUnit(item.available);
+            stockEl.textContent = numberWithUnit(item.stock);
+            issuedYearEl.textContent = numberWithUnit(item.issuedYear);
+            scopeEl.textContent = item.label;
+
+            if (stockMovementChart) {
+                stockMovementChart.data.datasets[0].data = [item.stock, item.issuedYear];
+                stockMovementChart.update();
+            }
+
+            buttons.forEach(function(button) {
+                button.setAttribute('aria-pressed', button.dataset.stockChoice === scope ? 'true' : 'false');
+            });
+        }
+
+        buttons.forEach(function(button) {
+            button.addEventListener('click', function() {
+                renderStock(button.dataset.stockChoice);
+            });
+        });
+
+        renderStock('all');
+    })();
+
+    (function() {
+        var classicCompanyPalette = [
+            '#3366CC', '#DC3912', '#FF9900', '#109618', '#990099', '#0099C6',
+            '#DD4477', '#66AA00', '#B82E2E', '#316395', '#994499', '#22AA99',
+            '#AAAA11', '#6633CC', '#E67300', '#8B0707', '#329262', '#5574A6',
+            '#3B3EAC', '#4285F4', '#EA4335', '#FBBC05', '#34A853', '#7E57C2'
+        ];
+
+        var vibrantSectorsPalette = [
+            '#7C3AED', '#0D9488', '#D97706', '#2563EB', '#DB2777', '#059669',
+            '#4F46E5', '#DC2626', '#0891B2', '#CA8A04', '#9333EA', '#16A34A',
+            '#EA580C', '#4338CA', '#BE185D', '#0284C7', '#65A30D', '#C026D3',
+            '#047857', '#B91C1C', '#6D28D9', '#0369A1', '#B45309', '#475569'
+        ];
+
+        function unitText(value) {
+            return Number(value) === 1 ? 'رزمة' : 'رزم';
+        }
+
+        function quantityText(value) {
+            var n = Number(value || 0);
+            return n.toLocaleString('en-US') + ' ' + unitText(n);
+        }
+
+        function initDistributionPieChart(config) {
+            var canvas = document.getElementById(config.canvasId);
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            var labels = config.labels || [];
+            var values = config.values || [];
+            var total = values.reduce(function(sum, value) { return sum + Number(value || 0); }, 0);
+            var hoverPanel = document.getElementById(config.hoverPanelId);
+            var hoverName = document.getElementById(config.hoverNameId);
+            var hoverValue = document.getElementById(config.hoverValueId);
+            var hoverShare = document.getElementById(config.hoverShareId);
+            var palette = config.palette || classicCompanyPalette;
+            var defaultShare = config.defaultShareText || 'إجمالي المصروف';
+            var groupLabel = config.groupLabel || '';
+
+            var colors = labels.map(function(_, index) {
+                return palette[index % palette.length];
+            });
+
+            function resetHoverPanel() {
+                if (hoverName) hoverName.textContent = 'مرر المؤشر على أي جزء';
+                if (hoverValue) hoverValue.textContent = quantityText(total);
+                if (hoverShare) hoverShare.textContent = defaultShare;
+                if (hoverPanel) {
+                    hoverPanel.style.borderColor = '#e5e7eb';
+                    hoverPanel.style.boxShadow = '0 4px 16px rgba(52,67,94,0.05), inset -4px 0 0 rgba(52,67,94,0.12)';
+                    hoverPanel.style.backgroundColor = '#ffffff';
+                }
+            }
+
+            function showHoverPanel(index) {
+                var value = Number(values[index] || 0);
+                var percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                var sliceColor = colors[index] || '#3366CC';
+                if (hoverName) hoverName.textContent = labels[index] || '';
+                if (hoverValue) hoverValue.textContent = quantityText(value);
+                if (hoverShare) hoverShare.textContent = percent + '% من إجمالي ' + groupLabel;
+                if (hoverPanel) {
+                    hoverPanel.style.borderColor = sliceColor;
+                    hoverPanel.style.boxShadow = '0 8px 24px rgba(52,67,94,0.08), inset -5px 0 0 ' + sliceColor;
+                    hoverPanel.style.backgroundColor = '#ffffff';
+                }
+            }
+
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: colors,
+                        borderColor: '#ffffff',
+                        borderWidth: 2,
+                        hoverBorderColor: '#ffffff',
+                        hoverBorderWidth: 3,
+                        hoverOffset: 24
+                    }]
+                },
+                options: {
+                    locale: 'en-US',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: 10 },
+                    animation: {
+                        duration: 1200,
+                        easing: 'easeOutQuart',
+                        animateRotate: true,
+                        animateScale: true
+                    },
+                    interaction: { mode: 'nearest', intersect: true },
+                    onHover: function(event, activeElements) {
+                        canvas.style.cursor = activeElements.length ? 'pointer' : 'default';
+                        if (!activeElements.length) {
+                            resetHoverPanel();
+                            return;
+                        }
+                        showHoverPanel(activeElements[0].index);
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            displayColors: true,
+                            titleFont: { family: 'Cairo', size: 12, weight: 'bold' },
+                            bodyFont: { family: 'Cairo', size: 12, weight: 'bold' },
+                            callbacks: {
+                                title: function(items) {
+                                    return items && items.length ? items[0].label : '';
+                                },
+                                label: function(context) {
+                                    var value = Number(context.raw || 0);
+                                    var percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                                    return ' المصروف: ' + quantityText(value) + ' (' + percent + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            canvas.addEventListener('mouseleave', resetHoverPanel);
+            resetHoverPanel();
+        }
+
+        // Initialize Chart 1: الإدارات والأفرع
+        initDistributionPieChart({
+            canvasId: 'companyBranchesDistributionChart',
+            hoverPanelId: 'companyBranchesHoverPanel',
+            hoverNameId: 'companyBranchesHoverName',
+            hoverValueId: 'companyBranchesHoverValue',
+            hoverShareId: 'companyBranchesHoverShare',
+            defaultShareText: 'إجمالي مصروف الإدارات والأفرع',
+            groupLabel: 'الإدارات والأفرع',
+            labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(companyBranchesActiveYear.Select(x => x.DepartmentName))),
+            values: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(companyBranchesActiveYear.Select(x => x.TotalQuantity))),
+            palette: classicCompanyPalette
+        });
+
+        // Initialize Chart 2: القطاعات والوحدات
+        initDistributionPieChart({
+            canvasId: 'sectorsUnitsDistributionChart',
+            hoverPanelId: 'sectorsUnitsHoverPanel',
+            hoverNameId: 'sectorsUnitsHoverName',
+            hoverValueId: 'sectorsUnitsHoverValue',
+            hoverShareId: 'sectorsUnitsHoverShare',
+            defaultShareText: 'إجمالي مصروف القطاعات والوحدات',
+            groupLabel: 'القطاعات والوحدات',
+            labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(sectorsUnitsActiveYear.Select(x => x.DepartmentName))),
+            values: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(sectorsUnitsActiveYear.Select(x => x.TotalQuantity))),
+            palette: vibrantSectorsPalette
+        });
+    })();
+
+    (function() {
+        var canvas = document.getElementById('inventoryPieChart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        new Chart(canvas, {
+            type: 'pie',
+            data: {
+                labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize((Model.InventoryList ?? new List<Resource_Management_System.Models.InventoryStatusViewModel>()).Select(x => x.PaperTypeName))),
+                datasets: [{
+                    data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize((Model.InventoryList ?? new List<Resource_Management_System.Models.InventoryStatusViewModel>()).Select(x => x.CurrentStock))),
+                    backgroundColor: ['#34435E', '#58a4b0', '#8b5cf6', '#f59e0b'],
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                locale: 'en-US',
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { family: 'Cairo', size: 10 }, usePointStyle: true, boxWidth: 8 } },
+                    tooltip: { callbacks: { label: function(c) { return ' ' + c.label + ': ' + rezmaText(c.raw); } } }
+                }
+            }
+        });
+    })();
+</script>

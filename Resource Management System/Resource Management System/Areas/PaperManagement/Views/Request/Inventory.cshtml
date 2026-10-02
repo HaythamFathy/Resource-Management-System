@@ -1,0 +1,362 @@
+@model IEnumerable<Resource_Management_System.Models.InventoryStatusViewModel>
+@{
+    ViewData["Title"] = "مخزون الورق والإمداد";
+    var receiveModel = ViewBag.ReceiveModel as Resource_Management_System.Models.ReceiveStockViewModel
+        ?? new Resource_Management_System.Models.ReceiveStockViewModel();
+    var activeContract = ViewBag.ActiveInventoryContract as Resource_Management_System.Models.InventoryContractViewModel;
+    var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+}
+
+<style>
+    .inv-unified-header {
+        background: #34435e !important;
+        border: 1px solid #34435e !important;
+        border-radius: 20px 20px 0 0 !important;
+        box-shadow: none !important;
+    }
+
+        .inv-unified-header h2 {
+            color: white !important;
+            font-size: clamp(21px,2.2vw,27px) !important;
+            line-height: 1.4;
+        }
+
+        .inv-unified-header .bi, .inv-unified-header .material-symbols-outlined {
+            color: inherit;
+        }
+
+        .inv-unified-header > div:first-child > div:first-child > div:first-child {
+            color: white;
+        }
+
+    .inv-unified-nav {
+        border: 1px solid #dbe2ed !important;
+        background: #fff !important;
+        border-radius: 0 0 20px 20px !important;
+        padding: 11px 14px !important;
+        margin-bottom: 18px !important;
+        box-shadow: 0 2px 5px #22304708;
+    }
+
+        .inv-unified-nav > div {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 9px !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+        }
+
+        .inv-unified-nav a {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            min-height: 41px !important;
+            padding: 10px 14px !important;
+            border-radius: 12px !important;
+            border: 1px solid #d5dfeb;
+            white-space: nowrap;
+            font-size: 13px !important;
+            font-weight: 850 !important;
+        }
+
+    .inv-unified-header .inv-unified-nav {
+        margin: 0 !important;
+    }
+
+    .inv-unified-header + .inv-unified-nav {
+        margin-top: 0 !important;
+    }
+
+    @@media(max-width:600px) {
+        .inv-unified-nav a {
+            font-size: 12px !important;
+            padding: 9px 10px !important;
+        }
+    }
+</style>
+<div class="space-y-7">
+    <div class="rounded-[28px] border border-border-light bg-gradient-to-r from-slate-50 via-white to-sky-50 shadow-sm p-5 lg:p-6 space-y-4 inv-unified-header">
+        <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+                    <i class="bi bi-box-seam text-2xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-extrabold text-on-surface">حالة المخزن</h2>
+                </div>
+            </div>
+
+            @if (userRole == Roles.Admin)
+            {
+                <button type="button" onclick="openAddPaperType()" class="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/15 bg-primary/5 text-primary px-4 py-2.5 text-xs font-black hover:bg-primary/10 transition-colors self-start xl:self-auto">
+                    <i class="bi bi-file-earmark-plus"></i>
+                    إضافة نوع ورق
+                </button>
+            }
+        </div>
+
+        <div class="inv-unified-nav rounded-2xl border border-slate-200 bg-white/90 p-2.5">
+            <div class="flex flex-wrap gap-2 text-xs font-black">
+                <a href="/PaperManagement/Request/Inventory" class="inline-flex items-center gap-2 rounded-xl bg-[#34435E] text-white px-4 py-2.5 shadow-sm">
+                    <i class="bi bi-box-seam"></i>
+                    المخزن
+                </a>
+                <a href="/PaperManagement/Request/InventoryContracts" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-file-earmark-text"></i>
+                    العقود
+                </a>
+                <a href="/PaperManagement/Request/InventoryMovementLog" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-list-ul"></i>
+                    سجل حركة المخزون
+                </a>
+                <a href="/PaperManagement/Request/ReceiptLog" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-clock-history"></i>
+                    سجل الاستلام
+                </a>
+                @* <a href="/PaperManagement/Request/InventoryYearlyLedger" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                    <i class="bi bi-calendar2-range"></i>
+                    التقرير السنوي
+                </a> *@
+            </div>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold flex items-center gap-2">
+            <i class="bi bi-check-circle-fill text-lg"></i>
+            <span>@TempData["SuccessMessage"]</span>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm font-semibold flex items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill text-lg"></i>
+            <span>@TempData["ErrorMessage"]</span>
+        </div>
+    }
+
+    <!-- Current contract -->
+    @if (activeContract != null)
+    {
+        <div class="bg-surface-white rounded-2xl border border-border-light shadow-sm p-5 lg:p-6">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                        <i class="bi bi-file-earmark-check text-xl"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h3 class="font-extrabold text-lg text-on-surface">@activeContract.ContractName</h3>
+                            <span class="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-black">عقد نشط</span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(activeContract.ContractNumber))
+                        {
+                            <div class="text-xs text-gray-500 mt-1">رقم العقد: <span class="font-bold text-gray-700">@activeContract.ContractNumber</span></div>
+                        }
+                    </div>
+                </div>
+
+                <a href="/PaperManagement/Request/InventoryContracts"
+                   class="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 text-primary px-4 py-2.5 text-xs font-black hover:bg-primary/10 transition-colors">
+                    <i class="bi bi-sliders"></i>
+                    إدارة العقد
+                </a>
+            </div>
+
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <div class="rounded-xl bg-neutral-50 border border-neutral-200 p-3">
+                    <div class="text-[11px] font-bold text-neutral-500 mb-1">تاريخ البداية</div>
+                    <div class="font-black text-sm text-slate-800" dir="ltr">@activeContract.StartDate.ToString("yyyy/MM/dd")</div>
+                </div>
+                <div class="rounded-xl bg-neutral-50 border border-neutral-200 p-3">
+                    <div class="text-[11px] font-bold text-neutral-500 mb-1">تاريخ النهاية</div>
+                    <div class="font-black text-sm text-slate-800" dir="ltr">@(activeContract.EndDate?.ToString("yyyy/MM/dd") ?? "غير محدد")</div>
+                </div>
+                <div class="rounded-xl bg-indigo-50 border border-indigo-100 p-3">
+                    <div class="text-[11px] font-bold text-indigo-600 mb-1">الرصيد الافتتاحي المرحل</div>
+                    <div class="font-black text-lg text-indigo-800">@activeContract.OpeningStock</div>
+                </div>
+                <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
+                    <div class="text-[11px] font-bold text-emerald-700 mb-1">المورد خلال العقد</div>
+                    <div class="font-black text-lg text-emerald-800">@activeContract.ReceivedQuantity</div>
+                </div>
+                <div class="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                    <div class="text-[11px] font-bold text-slate-600 mb-1">المصروف خلال العقد</div>
+                    <div class="font-black text-lg text-slate-800">@activeContract.IssuedQuantity</div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="bg-amber-50 rounded-2xl border border-amber-200 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-white border border-amber-200 text-amber-600 flex items-center justify-center">
+                    <i class="bi bi-file-earmark-x text-lg"></i>
+                </div>
+                <div class="font-extrabold text-amber-900">لا يوجد عقد نشط حالياً</div>
+            </div>
+            <a href="/PaperManagement/Request/InventoryContracts"
+               class="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 text-white px-4 py-2.5 text-xs font-black hover:bg-amber-700 transition-colors">
+                <i class="bi bi-plus-lg"></i> بدء عقد
+            </a>
+        </div>
+    }
+
+    <!-- Inventory cards -->
+    <div class="grid gap-5 inventory-grid">
+        @foreach (var item in Model)
+        {
+            <div class="bg-surface-white rounded-2xl p-5 shadow-sm border border-border-light flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                        <span class="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">كود الورق: #@item.PaperTypeID</span>
+                        <span class="text-xs text-gray-400">آخر تحديث: @item.LastUpdated.ToEgyptTime().ToString("yyyy/MM/dd")</span>
+                    </div>
+
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold text-primary">ورق @item.PaperTypeName</h3>
+                        @if (userRole == Roles.Admin)
+                        {
+                            <form asp-area="PaperManagement" asp-controller="Request" asp-action="DeletePaperType" method="post">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="paperTypeId" value="@item.PaperTypeID" />
+                                <button type="submit" onclick="return confirm('حذف نوع الورق \'@item.PaperTypeName\' نهائياً؟');" class="text-red-600 hover:bg-red-50 rounded p-1" title="حذف نوع الورق">
+                                    <i class="bi bi-trash3"></i>
+                                </button>
+                            </form>
+                        }
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div class="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                            <p class="text-[11px] font-bold text-emerald-700 mb-1">الرصيد الحالي</p>
+                            <p class="text-2xl font-extrabold text-emerald-800">@item.CurrentStock <span class="text-xs font-normal">@QuantityHelper.RezmaUnit(item.CurrentStock)</span></p>
+                        </div>
+
+                        @if (item.HasActiveContract)
+                        {
+                            <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+                                <p class="text-[11px] font-bold text-indigo-700 mb-1">الرصيد المرحل عند البداية</p>
+                                <p class="text-2xl font-extrabold text-indigo-800">@item.OpeningStockUnderActiveContract <span class="text-xs font-normal">@QuantityHelper.RezmaUnit(item.OpeningStockUnderActiveContract)</span></p>
+                            </div>
+                            <div class="rounded-xl border border-sky-100 bg-sky-50 p-3">
+                                <p class="text-[11px] font-bold text-sky-700 mb-1">المورد خلال العقد</p>
+                                <p class="text-2xl font-extrabold text-sky-800">@item.ReceivedUnderActiveContract <span class="text-xs font-normal">@QuantityHelper.RezmaUnit(item.ReceivedUnderActiveContract)</span></p>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <p class="text-[11px] font-bold text-slate-600 mb-1">المصروف خلال العقد</p>
+                                <p class="text-2xl font-extrabold text-slate-800">@item.IssuedUnderActiveContract <span class="text-xs font-normal">@QuantityHelper.RezmaUnit(item.IssuedUnderActiveContract)</span></p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <p class="text-[11px] font-bold text-slate-600 mb-1">إجمالي المورد المسجل</p>
+                                <p class="text-2xl font-extrabold text-slate-800">@item.TotalReceived <span class="text-xs font-normal">@QuantityHelper.RezmaUnit(item.TotalReceived)</span></p>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="pt-3 border-t border-border-light flex items-center justify-between gap-3">
+                    <span class="text-xs text-gray-500">حالة المخزن</span>
+                    @if (item.CurrentStock <= 0)
+                    {
+                        <span class="text-red-600 text-xs font-bold flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> نفد المخزن</span>
+                    }
+                    else if (item.IsLowStock)
+                    {
+                        <span class="text-amber-600 text-xs font-bold flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> رصيد منخفض</span>
+                    }
+                    else
+                    {
+                        <span class="text-emerald-600 text-xs font-bold flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> متوفر</span>
+                    }
+                </div>
+
+                <form asp-area="PaperManagement" asp-controller="Request" asp-action="UpdateLowStockThreshold" method="post" class="pt-3 flex items-center gap-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="paperTypeId" value="@item.PaperTypeID" />
+                    <label class="text-xs text-gray-500 whitespace-nowrap">حد التنبيه:</label>
+                    <input type="number" name="threshold" min="0" value="@item.LowStockThreshold" class="w-20 p-1.5 text-xs font-bold border border-border-light rounded-md text-center outline-none focus:border-primary" />
+                    <button type="submit" class="text-xs font-bold text-primary hover:underline whitespace-nowrap">حفظ</button>
+                </form>
+            </div>
+        }
+    </div>
+
+    <!-- Receive stock -->
+    <div class="bg-surface-white rounded-2xl p-6 lg:p-8 shadow-sm border border-border-light">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-5">
+            <h3 class="text-lg font-bold text-on-surface flex items-center gap-2">
+                <i class="bi bi-box-seam text-primary"></i>
+                <span>استلام توريد جديد</span>
+            </h3>
+            <span class="text-xs font-black px-3 py-1.5 rounded-full @(activeContract != null ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-amber-50 text-amber-700 border border-amber-100")">
+                @(activeContract != null ? $"العقد: {activeContract.DisplayName}" : "خارج فترة عقد")
+            </span>
+        </div>
+
+        <form asp-area="PaperManagement" asp-controller="Request" asp-action="ReceiveStock" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-1">
+                    <label class="block text-xs font-bold text-on-surface">نوع الورق المستلم</label>
+                    <select name="PaperTypeID" required class="w-full p-2.5 bg-white border border-border-light rounded-xl text-sm font-semibold outline-none focus:border-primary">
+                        <option value="">-- اختر نوع الورق --</option>
+                        @if (receiveModel.PaperTypes != null)
+                        {
+                            foreach (var pt in receiveModel.PaperTypes)
+                            {
+                                <option value="@pt.Value">@pt.Text</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="block text-xs font-bold text-on-surface">الكمية المستلمة (بالرزمة/الباكيت)</label>
+                    <input type="number" name="QuantityReceived" required min="1" max="100000" class="w-full p-2.5 bg-white border border-border-light rounded-xl text-sm font-semibold outline-none focus:border-primary" placeholder="أدخل الكمية المضافة" />
+                </div>
+            </div>
+
+            <button type="submit" class="w-full py-3 px-4 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2">
+                <i class="bi bi-plus-lg text-base"></i>
+                <span>تسجيل التوريد وتحديث الرصيد</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<div id="addPaperTypeModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4">
+    <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6">
+        <div class="flex justify-between items-start border-b pb-3 mb-4">
+            <h3 class="text-lg font-extrabold">إضافة نوع ورق</h3>
+            <button type="button" onclick="closeAddPaperType()" class="text-2xl text-gray-500">×</button>
+        </div>
+        <form asp-area="PaperManagement" asp-controller="Request" asp-action="CreatePaperType" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <div>
+                <label class="block text-xs font-bold text-on-surface mb-1">اسم نوع الورق</label>
+                <input type="text" name="PaperTypeName" required maxlength="20" class="w-full p-2.5 border border-border-light rounded-lg text-sm" placeholder="مثال: A4" />
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-on-surface mb-1">الحصة الشهرية الافتراضية لكل قسم</label>
+                <input type="number" name="DefaultQuotaLimit" min="0" value="0" class="w-full p-2.5 border border-border-light rounded-lg text-sm" />
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-primary text-white text-sm font-bold rounded-lg">إضافة</button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function openAddPaperType() { document.getElementById('addPaperTypeModal').classList.replace('hidden', 'flex'); }
+        function closeAddPaperType() { document.getElementById('addPaperTypeModal').classList.replace('flex', 'hidden'); }
+    </script>
+}

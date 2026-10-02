@@ -1,0 +1,506 @@
+@model Resource_Management_System.Models.InventoryContractsPageViewModel
+@{
+    ViewData["Title"] = "إدارة عقود المخزون";
+    var today = DateTime.UtcNow.ToEgyptTime().Date;
+    var totalContracts = Model.Contracts.Count;
+    var activeContractsCount = Model.Contracts.Count(c => c.IsActive);
+    var scheduledContractsCount = Model.Contracts.Count(c => c.IsScheduled);
+    var closedContractsCount = Model.Contracts.Count(c => !c.IsActive && !c.IsScheduled);
+    var scheduledContract = Model.Contracts.FirstOrDefault(c => c.IsScheduled);
+    var lastClosedEndDate = Model.Contracts
+        .Where(c => !c.IsActive && !c.IsScheduled && c.EndDate.HasValue)
+        .OrderByDescending(c => c.EndDate)
+        .Select(c => c.EndDate!.Value.ToString("yyyy-MM-dd"))
+        .FirstOrDefault();
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr@4.6.13/dist/l10n/ar.js"></script>
+
+<style>
+    .inv-unified-header {background:#34435e!important;border:1px solid #34435e!important;border-radius:20px 20px 0 0!important;box-shadow:none!important;}
+    .inv-unified-header h2 {color:white!important;font-size:clamp(21px,2.2vw,27px)!important;line-height:1.4;}
+    .inv-unified-header .bi, .inv-unified-header .material-symbols-outlined {color:inherit;}
+    .inv-unified-header > div:first-child > div:first-child > div:first-child {color:white;}
+    .inv-unified-nav {border:1px solid #dbe2ed!important;background:#fff!important;border-radius:0 0 20px 20px!important;padding:11px 14px!important;margin-bottom:18px!important;box-shadow:0 2px 5px #22304708;}
+    .inv-unified-nav > div {display:flex!important;flex-wrap:wrap!important;gap:9px!important;align-items:center!important;justify-content:flex-start!important;}
+    .inv-unified-nav a {display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;min-height:41px!important;padding:10px 14px!important;border-radius:12px!important;border:1px solid #d5dfeb;white-space:nowrap;font-size:13px!important;font-weight:850!important;}
+    .inv-unified-header .inv-unified-nav {margin:0!important;}
+    .inv-unified-header + .inv-unified-nav {margin-top:0!important;}
+    @@media(max-width:600px){.inv-unified-nav a{font-size:12px!important;padding:9px 10px!important;}}
+</style>
+<div class="space-y-7">
+    <div class="rounded-[28px] border border-border-light bg-gradient-to-r from-slate-50 via-white to-sky-50 shadow-sm p-5 lg:p-6 inv-unified-header">
+        <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+                    <i class="bi bi-files text-2xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-extrabold text-on-surface">سجل العقود</h2>
+                    <div class="flex flex-wrap gap-2 mt-2 text-[11px] font-black">
+                        <span class="px-3 py-1 rounded-full bg-slate-100 text-slate-700">الإجمالي: @totalContracts</span>
+                        <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">نشط: @activeContractsCount</span>
+                        <span class="px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">لم يبدأ بعد: @scheduledContractsCount</span>
+                        <span class="px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">مغلق: @closedContractsCount</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="inv-unified-nav rounded-2xl border border-slate-200 bg-white/90 p-2.5">
+        <div class="flex flex-wrap gap-2 text-xs font-black">
+            <a href="/PaperManagement/Request/Inventory" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                <i class="bi bi-box-seam"></i>
+                المخزن
+            </a>
+            <a href="/PaperManagement/Request/InventoryContracts" class="inline-flex items-center gap-2 rounded-xl bg-[#34435E] text-white px-4 py-2.5 shadow-sm">
+                <i class="bi bi-file-earmark-text"></i>
+                العقود
+            </a>
+            <a href="/PaperManagement/Request/InventoryMovementLog" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                <i class="bi bi-list-ul"></i>
+                سجل حركة المخزون
+            </a>
+            <a href="/PaperManagement/Request/ReceiptLog" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                <i class="bi bi-clock-history"></i>
+                سجل الاستلام
+            </a>
+            @* <a href="/PaperManagement/Request/InventoryYearlyLedger" class="inline-flex items-center gap-2 rounded-xl border border-border-light bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 transition-colors">
+                <i class="bi bi-calendar2-range"></i>
+                التقرير السنوي
+            </a> *@
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold flex items-center gap-2 shadow-sm">
+            <i class="bi bi-check-circle-fill text-lg"></i>
+            <span>@TempData["SuccessMessage"]</span>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-sm font-semibold flex items-center gap-2 shadow-sm">
+            <i class="bi bi-exclamation-triangle-fill text-lg"></i>
+            <span>@TempData["ErrorMessage"]</span>
+        </div>
+    }
+
+    @if (Model.ActiveContract != null)
+    {
+        var contract = Model.ActiveContract;
+        <section class="bg-surface-white rounded-[28px] border border-border-light shadow-sm overflow-hidden">
+            <div class="p-5 lg:p-6 border-b border-border-light bg-gradient-to-r from-emerald-50/70 via-white to-sky-50/70">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                            <i class="bi bi-file-earmark-check text-xl"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h3 class="text-xl font-extrabold text-slate-900">@contract.ContractName</h3>
+                                <span class="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-black">نشط</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(contract.ContractNumber))
+                            {
+                                <div class="text-xs text-slate-500 mt-1">@contract.ContractNumber</div>
+                            }
+                            <div class="flex items-center gap-2 mt-2 text-sm font-bold text-slate-600 flex-wrap">
+                                <span class="text-slate-500 font-semibold">كمية التعاقد:</span>
+                                <span class="px-2.5 py-0.5 rounded-lg bg-sky-50 text-sky-800 border border-sky-200">A4: @((contract.QuantityA4 ?? 0).ToString("N0")) رزمة</span>
+                                <span class="px-2.5 py-0.5 rounded-lg bg-violet-50 text-violet-800 border border-violet-200">A3: @((contract.QuantityA3 ?? 0).ToString("N0")) رزمة</span>
+                                <span class="px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200">الإجمالي: @(((long)(contract.QuantityA4 ?? 0) + (contract.QuantityA3 ?? 0)).ToString("N0")) رزمة</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-xs font-bold text-slate-500">
+                        <span>البداية</span>
+                        <span class="text-slate-900" dir="ltr">@contract.StartDate.ToString("yyyy/MM/dd")</span>
+                        <span class="mx-2 text-slate-300">|</span>
+                        <span>النهاية</span>
+                        @if (contract.EndDate.HasValue)
+                        {
+                            <span class="text-slate-900" dir="ltr">@contract.EndDate.Value.ToString("yyyy/MM/dd")</span>
+                        }
+                        else
+                        {
+                            <span class="text-primary">غير محددة</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-5 lg:p-6 space-y-6">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div class="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 shadow-sm">
+                        <div class="text-[11px] font-black text-indigo-600 mb-1">الرصيد الافتتاحي</div>
+                        <div class="text-2xl font-extrabold text-indigo-900">@contract.OpeningStock</div>
+                    </div>
+                    <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm">
+                        <div class="text-[11px] font-black text-emerald-700 mb-1">المورد</div>
+                        <div class="text-2xl font-extrabold text-emerald-900">@contract.ReceivedQuantity</div>
+                    </div>
+                    <div class="rounded-2xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
+                        <div class="text-[11px] font-black text-amber-700 mb-1">المصروف</div>
+                        <div class="text-2xl font-extrabold text-amber-900">@contract.IssuedQuantity</div>
+                    </div>
+                    <div class="rounded-2xl border border-sky-100 bg-sky-50 p-4 shadow-sm">
+                        <div class="text-[11px] font-black text-sky-700 mb-1">الرصيد الحالي</div>
+                        <div class="text-2xl font-extrabold text-sky-900">@contract.CurrentPhysicalStock</div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-2xl border border-border-light">
+                    <table class="w-full text-right text-sm">
+                        <thead class="bg-slate-800 text-white">
+                            <tr>
+                                <th class="px-4 py-3">نوع الورق</th>
+                                <th class="px-4 py-3">الرصيد الافتتاحي</th>
+                                <th class="px-4 py-3">المورد</th>
+                                <th class="px-4 py-3">المصروف</th>
+                                <th class="px-4 py-3">الرصيد الحالي</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 font-semibold">
+                            @foreach (var row in Model.ActiveBalances)
+                            {
+                                <tr class="hover:bg-slate-50">
+                                    <td class="px-4 py-3 font-black text-primary">@row.PaperTypeName</td>
+                                    <td class="px-4 py-3">@row.OpeningStock</td>
+                                    <td class="px-4 py-3 text-emerald-700">+@row.ReceivedQuantity</td>
+                                    <td class="px-4 py-3 text-amber-700">-@row.IssuedQuantity</td>
+                                    <td class="px-4 py-3 font-black">@row.CurrentPhysicalStock</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="rounded-[24px] border border-red-100 bg-red-50/60 p-4 lg:p-5">
+                    <div class="font-extrabold text-red-900 mb-3 flex items-center gap-2">
+                        <i class="bi bi-flag"></i>
+                        إنهاء العقد
+                    </div>
+                    <form asp-area="PaperManagement" asp-controller="Request" asp-action="CloseInventoryContract" method="post"
+                          class="grid grid-cols-1 lg:grid-cols-[220px_1fr_auto] gap-3 items-end"
+                          onsubmit="return confirm('تأكيد إنهاء العقد بالتاريخ المحدد؟ الرصيد بالمخزن لن يتم تصفيره.');">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="contractId" value="@contract.ContractID" />
+
+                        <div>
+                            <label class="block text-xs font-black text-red-900 mb-1.5">تاريخ النهاية</label>
+                            <input id="contractEndDate" type="text" name="endDate" value="@today.ToString("yyyy-MM-dd")" readonly required
+                                   class="w-full rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-bold cursor-pointer focus:ring-2 focus:ring-red-100 focus:border-red-300" />
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-black text-red-900 mb-1.5">ملاحظة الإغلاق</label>
+                            <input type="text" name="closeNote" maxlength="500" placeholder="اختياري"
+                                   class="w-full rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-red-100 focus:border-red-300" />
+                        </div>
+
+                        <button type="submit" class="h-[42px] rounded-xl bg-red-600 hover:bg-red-700 text-white px-5 text-xs font-black whitespace-nowrap">
+                            إنهاء العقد
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+    }
+    @if (scheduledContract != null)
+    {
+        <section class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-900 font-bold">
+            <div>العقد «@scheduledContract.ContractName» مسجل بحالة «لم يبدأ بعد» وتاريخ بدايته @scheduledContract.StartDate.ToString("yyyy/MM/dd").</div>
+            @if (scheduledContract.StartDate.Date <= today && Model.ActiveContract != null)
+            {
+                <div class="mt-2">حان موعد بدايته، لكن يجب إنهاء العقد الحالي أولًا. لن يتم تغيير العقد النشط تلقائيًا.</div>
+            }
+            else if (scheduledContract.EndDate.HasValue && scheduledContract.EndDate.Value.Date < today)
+            {
+                <div class="mt-2">انتهت المدة المحددة للعقد قبل تفعيله. يرجى مراجعة الإدارة قبل تسجيل أي حركات عليه.</div>
+            }
+            else if (scheduledContract.StartDate.Date <= today && Model.ActiveContract == null)
+            {
+                <div class="mt-2">حان موعد البداية، ولكن توجد تواريخ تحتاج إلى مراجعة قبل تفعيل العقد.</div>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="bg-surface-white rounded-[28px] border border-border-light shadow-sm p-5 lg:p-6">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="w-11 h-11 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                    <i class="bi bi-file-earmark-plus text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-extrabold text-on-surface">تسجيل عقد جديد</h3>
+                </div>
+            </div>
+
+            <form asp-area="PaperManagement" asp-controller="Request" asp-action="StartInventoryContract" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 mb-1.5">اسم العقد <span class="text-red-500">*</span></label>
+                        <input type="text" name="ContractName" required maxlength="200" placeholder="مثال: عقد توريد الورق 2026"
+                               class="w-full rounded-xl border border-border-light bg-white px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-2 focus:ring-primary/10" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 mb-1.5">رقم العقد</label>
+                        <input type="text" name="ContractNumber" maxlength="100" placeholder="اختياري"
+                               class="w-full rounded-xl border border-border-light bg-white px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-2 focus:ring-primary/10" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 mb-1.5">تاريخ البداية <span class="text-red-500">*</span></label>
+                        <input id="contractStartDate" type="text" name="StartDate" value="@today.ToString("yyyy-MM-dd")" placeholder="YYYY-MM-DD" inputmode="numeric" autocomplete="off" required
+                               class="w-full rounded-xl border border-border-light bg-white px-3 py-2.5 text-sm font-bold focus:border-primary focus:ring-2 focus:ring-primary/10" />
+                        @if (Model.ActiveContract != null)
+                        {
+                            <p class="text-[11px] text-amber-700 font-bold mt-1">يوجد عقد نشط حاليًا؛ يمكنك تسجيل عقد مستقبلي، أما بدء عقد جديد اليوم فيتطلب إنهاء العقد الحالي.</p>
+                        }
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-xs font-black text-slate-700">تاريخ النهاية</label>
+                            <button type="button" id="clearNewContractEndDate" class="text-[11px] font-bold text-slate-400 hover:text-red-500 transition-colors" title="مسح تاريخ النهاية">مسح</button>
+                        </div>
+                        <input id="newContractEndDate" type="text" name="EndDate" placeholder="YYYY-MM-DD (اختياري)" inputmode="numeric" autocomplete="off"
+                               class="w-full rounded-xl border border-border-light bg-white px-3 py-2.5 text-sm font-bold cursor-pointer focus:border-primary focus:ring-2 focus:ring-primary/10" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 mb-1.5">
+                            كمية A4 (رزمة)
+                        </label>
+                        <input type="number" name="QuantityA4" min="0" placeholder=""
+                               class="w-full rounded-xl border border-border-light bg-white px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-2 focus:ring-primary/10" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 mb-1.5">
+                            كمية A3 (رزمة)
+                        </label>
+                        <input type="number" name="QuantityA3" min="0" placeholder=""
+                               class="w-full rounded-xl border border-border-light bg-white px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-2 focus:ring-primary/10" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-black text-slate-700 mb-1.5">ملاحظات</label>
+                    <textarea name="Notes" maxlength="1000" rows="2" placeholder="اختياري"
+                              class="w-full rounded-xl border border-border-light bg-white px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-2 focus:ring-primary/10"></textarea>
+                </div>
+
+                <button type="submit" class="w-full rounded-xl bg-primary hover:bg-primary/90 text-white py-3 text-sm font-black flex items-center justify-center gap-2">
+                    <i class="bi bi-play-circle"></i>
+                    تسجيل العقد
+                </button>
+            </form>
+        </section>
+    }
+
+    <section class="bg-surface-white rounded-[28px] border border-border-light shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-border-light flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 bg-slate-50/70">
+            <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="font-extrabold text-lg text-on-surface">سجل العقود</h3>
+                <span class="text-xs font-black rounded-full bg-slate-100 text-slate-600 px-3 py-1">@Model.Contracts.Count عقد</span>
+            </div>
+            <a asp-area="PaperManagement" asp-controller="Request" asp-action="ExportInventoryContractsToExcel"
+               class="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2 text-xs font-black">
+                <i class="bi bi-file-earmark-excel"></i>
+                تصدير Excel
+            </a>
+        </div>
+
+        @if (!Model.Contracts.Any())
+        {
+            <div class="p-10 text-center text-sm font-bold text-slate-500">لا توجد عقود مسجلة بعد.</div>
+        }
+        else
+        {
+            <div class="overflow-x-auto">
+                <table class="w-full text-right text-sm min-w-[1200px]">
+                    <thead class="bg-slate-800 text-white">
+                        <tr>
+                            <th class="px-4 py-3">العقد</th>
+                            <th class="px-4 py-3">الفترة</th>
+                            <th class="px-4 py-3">الإجمالي</th>
+                            <th class="px-4 py-3">A4</th>
+                            <th class="px-4 py-3">A3</th>
+                            <th class="px-4 py-3">الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 font-semibold">
+                        @foreach (var item in Model.Contracts)
+                        {
+                            <tr class="hover:bg-slate-50 align-top">
+                                <td class="px-4 py-4 min-w-[220px]">
+                                    <div class="font-black text-slate-900">@item.ContractName</div>
+                                    <a href="/PaperManagement/ReportsCenter/Index?tab=contract&amp;contractId=@item.ContractID"
+                                       class="inline-flex mt-2 items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 px-2.5 py-1.5 text-xs font-black">
+                                        <i class="bi bi-file-earmark-bar-graph"></i> عرض تقرير العقد
+                                    </a>
+                                    @if (!string.IsNullOrWhiteSpace(item.ContractNumber))
+                                    {
+                                        <div class="text-[13px] text-slate-500 mt-1">@item.ContractNumber</div>
+                                    }
+                                    <div class="flex flex-wrap gap-1.5 mt-2 text-[13px] font-bold">
+                                        <span class="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200">تعاقد A4: @((item.QuantityA4 ?? 0).ToString("N0"))</span>
+                                        <span class="px-2 py-0.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200">تعاقد A3: @((item.QuantityA3 ?? 0).ToString("N0"))</span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4 min-w-[150px] text-[13px] text-slate-600">
+                                    <div dir="ltr">@item.StartDate.ToString("yyyy/MM/dd")</div>
+                                    <div class="text-slate-400 my-1">→</div>
+                                    <div dir="ltr">@(item.EndDate?.ToString("yyyy/MM/dd") ?? "—")</div>
+                                </td>
+                                <td class="px-4 py-4 min-w-[210px]">
+                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-1.5 text-[13px] leading-5">
+                                        <div class="flex items-center justify-between gap-2 font-bold text-slate-900 pb-1 mb-1 border-b border-slate-200"><span class="text-slate-700">كمية التعاقد</span><span class="font-black">@(((long)(item.QuantityA4 ?? 0) + (item.QuantityA3 ?? 0)).ToString("N0"))</span></div>
+                                        <div class="flex items-center justify-between"><span class="text-slate-500">افتتاحي</span><span class="font-black text-slate-900">@item.OpeningStock</span></div>
+                                        <div class="flex items-center justify-between"><span class="text-emerald-600">المورد</span><span class="font-black text-emerald-700">@item.ReceivedQuantity</span></div>
+                                        <div class="flex items-center justify-between"><span class="text-amber-600">المصروف</span><span class="font-black text-amber-700">@item.IssuedQuantity</span></div>
+                                        <div class="flex items-center justify-between border-t border-slate-200 pt-1 mt-1"><span class="text-primary">الرصيد</span><span class="font-black text-primary">@(item.IsScheduled ? "—" : (item.ClosingStock ?? item.CurrentContractBalance).ToString())</span></div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4 min-w-[210px]">
+                                    @if (item.A4Summary != null)
+                                    {
+                                        <div class="rounded-2xl border border-sky-100 bg-sky-50 p-3 space-y-1.5 text-[13px] leading-5">
+                                            <div class="flex items-center justify-between gap-2 font-bold text-sky-900 pb-1 mb-1 border-b border-sky-200/60"><span class="text-sky-700">كمية التعاقد</span><span class="font-black">@((item.QuantityA4 ?? 0).ToString("N0"))</span></div>
+                                            <div class="flex items-center justify-between"><span class="text-slate-500">افتتاحي</span><span class="font-black text-slate-900">@item.A4Summary.OpeningStock</span></div>
+                                            <div class="flex items-center justify-between"><span class="text-emerald-600">المورد</span><span class="font-black text-emerald-700">@item.A4Summary.ReceivedQuantity</span></div>
+                                            <div class="flex items-center justify-between"><span class="text-amber-600">المصروف</span><span class="font-black text-amber-700">@item.A4Summary.IssuedQuantity</span></div>
+                                            <div class="flex items-center justify-between border-t border-sky-200 pt-1 mt-1"><span class="text-primary">الرصيد</span><span class="font-black text-primary">@item.A4Summary.BalanceDisplay</span></div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="rounded-2xl border border-dashed border-sky-200 bg-sky-50 p-3 space-y-1.5 text-[13px] leading-5">
+                                            <div class="flex items-center justify-between gap-2 font-bold text-sky-900"><span>كمية التعاقد</span><span class="font-black">@((item.QuantityA4 ?? 0).ToString("N0"))</span></div>
+                                            <div class="text-center text-slate-500">لا توجد بيانات حركة لهذا النوع</div>
+                                        </div>
+                                    }
+                                </td>
+                                <td class="px-4 py-4 min-w-[210px]">
+                                    @if (item.A3Summary != null)
+                                    {
+                                        <div class="rounded-2xl border border-violet-100 bg-violet-50 p-3 space-y-1.5 text-[13px] leading-5">
+                                            <div class="flex items-center justify-between gap-2 font-bold text-violet-900 pb-1 mb-1 border-b border-violet-200/60"><span class="text-violet-700">كمية التعاقد</span><span class="font-black">@((item.QuantityA3 ?? 0).ToString("N0"))</span></div>
+                                            <div class="flex items-center justify-between"><span class="text-slate-500">افتتاحي</span><span class="font-black text-slate-900">@item.A3Summary.OpeningStock</span></div>
+                                            <div class="flex items-center justify-between"><span class="text-emerald-600">المورد</span><span class="font-black text-emerald-700">@item.A3Summary.ReceivedQuantity</span></div>
+                                            <div class="flex items-center justify-between"><span class="text-amber-600">المصروف</span><span class="font-black text-amber-700">@item.A3Summary.IssuedQuantity</span></div>
+                                            <div class="flex items-center justify-between border-t border-violet-200 pt-1 mt-1"><span class="text-primary">الرصيد</span><span class="font-black text-primary">@item.A3Summary.BalanceDisplay</span></div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="rounded-2xl border border-dashed border-violet-200 bg-violet-50 p-3 space-y-1.5 text-[13px] leading-5">
+                                            <div class="flex items-center justify-between gap-2 font-bold text-violet-900"><span>كمية التعاقد</span><span class="font-black">@((item.QuantityA3 ?? 0).ToString("N0"))</span></div>
+                                            <div class="text-center text-slate-500">لا توجد بيانات حركة لهذا النوع</div>
+                                        </div>
+                                    }
+                                </td>
+                                <td class="px-4 py-4">
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="inline-flex px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-black">نشط</span>
+                                    }
+                                    else if (item.IsScheduled)
+                                    {
+                                        <span class="inline-flex px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-black">لم يبدأ بعد</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="inline-flex px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-black">مغلق</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+<script>
+    (function() {
+        if (typeof flatpickr === 'undefined') return;
+
+        var start = document.getElementById('contractStartDate');
+        var newEnd = document.getElementById('newContractEndDate');
+        var newEndPicker = null;
+
+        if (newEnd) {
+            newEndPicker = flatpickr(newEnd, {
+                locale: 'ar',
+                dateFormat: 'Y-m-d',
+                disableMobile: true,
+                allowInput: true,
+                minDate: start && start.value ? start.value : 'today'
+            });
+
+            var clearBtn = document.getElementById('clearNewContractEndDate');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    if (newEndPicker) {
+                        newEndPicker.clear();
+                    } else {
+                        newEnd.value = '';
+                    }
+                });
+            }
+        }
+
+        if (start) {
+            flatpickr(start, {
+                locale: 'ar',
+                dateFormat: 'Y-m-d',
+                disableMobile: true,
+                allowInput: true,
+                onChange: function(selectedDates, dateStr) {
+                    if (newEndPicker && dateStr) {
+                        newEndPicker.set('minDate', dateStr);
+                        if (newEnd.value && newEnd.value < dateStr) {
+                            newEndPicker.clear();
+                        }
+                    }
+                }
+            });
+        }
+
+        // Also synchronize the optional end date when StartDate is edited by typing.
+        if (start) {
+            start.addEventListener('change', function() {
+                if (!newEndPicker) return;
+                var typedStart = start.value;
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(typedStart)) return;
+                newEndPicker.set('minDate', typedStart);
+                if (newEnd && newEnd.value && newEnd.value < typedStart) {
+                    newEndPicker.clear();
+                }
+            });
+        }
+
+        var end = document.getElementById('contractEndDate');
+        if (end) {
+            flatpickr(end, {
+                locale: 'ar',
+                dateFormat: 'Y-m-d',
+                disableMobile: true,
+                allowInput: false,
+                minDate: '@(Model.ActiveContract?.StartDate.ToString("yyyy-MM-dd") ?? "")',
+                maxDate: 'today'
+            });
+        }
+    })();
+</script>

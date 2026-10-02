@@ -1,0 +1,227 @@
+@model Resource_Management_System.Models.RequestFilterViewModel
+@{
+    var from = Model.FromDate?.ToString("yyyy-MM-dd") ?? "";
+    var to = Model.ToDate?.ToString("yyyy-MM-dd") ?? "";
+}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr@4.6.13/dist/l10n/ar.js"></script>
+
+<div class="bg-surface-white rounded-xl shadow-sm border border-border-light p-4">
+    <form method="get" id="requestFilterForm" data-instant-filter="true" data-auto-filter="true" class="flex flex-wrap items-end gap-3">
+        <div class="min-w-[220px]">
+            <label asp-for="SearchKeyword" class="d-block text-xs fw-bold text-secondary mb-1">بحث مباشر</label>
+            <input asp-for="SearchKeyword" type="search" class="form-control form-control-sm"
+                   placeholder="رقم الطلب، القسم أو نوع الورق" autocomplete="off" data-live-request-search data-instant-search />
+        </div>
+        <div class="min-w-[160px]">
+            <label asp-for="DepartmentID" class="d-block text-xs fw-bold text-secondary mb-1">القسم</label>
+            <select asp-for="DepartmentID" asp-items="Model.Departments" class="form-select form-select-sm"><option value="">كل الأقسام</option></select>
+        </div>
+        <div class="min-w-[160px]">
+            <label asp-for="PaperTypeID" class="d-block text-xs fw-bold text-secondary mb-1">نوع الورق</label>
+            <select asp-for="PaperTypeID" asp-items="Model.PaperTypes" class="form-select form-select-sm"><option value="">كل الأنواع</option></select>
+        </div>
+        <div class="min-w-[220px]">
+            <label class="d-block text-xs fw-bold text-secondary mb-1">الفترة</label>
+            <input type="hidden" name="FromDate" id="FromDate" value="@from" />
+            <input type="hidden" name="ToDate" id="ToDate" value="@to" />
+            <input type="text" id="rangePicker" readonly placeholder="اختر الفترة الزمنية"
+                   class="form-control form-control-sm bg-white cursor-pointer" />
+        </div>
+
+        @if (Model.Statuses != null)
+        {
+            <div class="min-w-[220px]">
+                <label class="d-block text-xs fw-bold text-secondary mb-1">
+                    الحالة
+                </label>
+
+                <select asp-for="Status"
+                        asp-items="Model.Statuses"
+                        class="form-select form-select-sm"
+                        id="statusFilter">
+                    <option value="">كل الحالات</option>
+                </select>
+            </div>
+
+            <div id="pendingStageWrap"
+                 class="@(Model.Status == "Pending" ? "" : "hidden") min-w-[300px]">
+
+                <label class="d-block text-xs fw-bold text-secondary mb-1">
+                    مرحلة الانتظار
+                </label>
+
+                <div class="bg-white border border-border-light rounded-lg px-3 py-2 flex flex-col gap-2">
+
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer">
+                        <input type="checkbox"
+                               name="PendingStageOption"
+                               value="ITReview"
+                               class="pending-stage-option"
+                        @(Model.PendingStages?.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                            .Contains("ITReview") == true ? "checked" : "") />
+
+                        <span class="small">
+                            قيد مراجعة أمين العهده
+                        </span>
+                    </label>
+
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer">
+                        <input type="checkbox"
+                               name="PendingStageOption"
+                               value="DeputyIT"
+                               class="pending-stage-option"
+                        @(Model.PendingStages?.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                            .Contains("DeputyIT") == true ? "checked" : "") />
+
+                        <span class="small">
+                            قيد مراجعة نائب رئيس إدارة تكنولوجيا المعلومات
+                        </span>
+                    </label>
+
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer">
+                        <input type="checkbox"
+                               name="PendingStageOption"
+                               value="ITDepartment"
+                               class="pending-stage-option"
+                        @(Model.PendingStages?.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                            .Contains("ITDepartment") == true ? "checked" : "") />
+
+                        <span class="small">
+                            قيد مراجعة مدير إدارة تكنولوجيا المعلومات
+                        </span>
+                    </label>
+
+                </div>
+
+                <input type="hidden"
+                       name="PendingStages"
+                       id="PendingStages"
+                       value="@Model.PendingStages" />
+            </div>
+        }
+
+        <a href="@Url.Action(ViewContext.RouteData.Values["action"]?.ToString())" data-instant-filter-reset="true" class="text-primary small fw-bold text-decoration-none">إعادة ضبط</a>
+    </form>
+</div>
+
+<script>
+    flatpickr("#rangePicker", {
+        mode: "range",
+        locale: "ar",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d/m/Y",
+        defaultDate: [@Html.Raw(string.IsNullOrEmpty(from) ? "null" : $"\"{from}\"") , @Html.Raw(string.IsNullOrEmpty(to) ? "null" : $"\"{to}\"")],
+        onChange: function(selectedDates) {
+            function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+            if (selectedDates.length === 1) {
+                var d1 = iso(selectedDates[0]);
+                document.getElementById('FromDate').value = d1;
+                document.getElementById('ToDate').value = d1;
+            } else if (selectedDates.length === 2) {
+                document.getElementById('FromDate').value = iso(selectedDates[0]);
+                document.getElementById('ToDate').value = iso(selectedDates[1]);
+            }
+        },
+        onClose: function(selectedDates) {
+            if (selectedDates.length === 2) {
+                paperInstantFilterSubmit(document.getElementById('FromDate').closest('form'));
+            }
+        }
+    });
+
+    (function() {
+
+        var statusFilter = document.getElementById('statusFilter');
+        var pendingStageWrap = document.getElementById('pendingStageWrap');
+        var pendingStagesHidden = document.getElementById('PendingStages');
+
+        if (!statusFilter) {
+            return;
+        }
+
+        /*
+         * Show the Pending-stage checkboxes only
+         * when the main status is قيد الانتظار.
+         */
+        function updatePendingStageVisibility() {
+
+            if (statusFilter.value === 'Pending') {
+
+                pendingStageWrap.classList.remove('hidden');
+
+            } else {
+
+                pendingStageWrap.classList.add('hidden');
+
+                /*
+                 * Clear selected Pending stages
+                 * when another main status is selected.
+                 */
+                document
+                    .querySelectorAll('.pending-stage-option')
+                    .forEach(function(checkbox) {
+                        checkbox.checked = false;
+                    });
+
+                pendingStagesHidden.value = '';
+            }
+        }
+
+        /*
+         * Keep the hidden PendingStages field
+         * synchronized with the selected checkboxes.
+         */
+        function updatePendingStages() {
+
+            var selected = Array.from(
+                document.querySelectorAll('.pending-stage-option:checked')
+            ).map(function(checkbox) {
+                return checkbox.value;
+            });
+
+            pendingStagesHidden.value = selected.join(',');
+        }
+
+        /*
+         * When the main status changes,
+         * show/hide the sub-options.
+         *
+         * Submit the form so filtering happens
+         * on the FULL database result, not just
+         * the current page.
+         */
+        statusFilter.addEventListener('change', function() {
+
+            updatePendingStageVisibility();
+            updatePendingStages();
+
+
+        });
+
+        /*
+         * When a Pending checkbox changes,
+         * update the hidden value and submit.
+         */
+        document
+            .querySelectorAll('.pending-stage-option')
+            .forEach(function(checkbox) {
+
+                checkbox.addEventListener('change', function() {
+
+                    updatePendingStages();
+
+
+                });
+
+            });
+
+        /*
+         * Initial state.
+         */
+        updatePendingStageVisibility();
+
+    })();
+</script>

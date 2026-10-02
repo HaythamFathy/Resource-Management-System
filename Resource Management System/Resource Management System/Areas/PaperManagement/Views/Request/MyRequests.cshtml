@@ -1,0 +1,74 @@
+@model List<Resource_Management_System.Models.RequestItemViewModel>
+@{
+    ViewData["Title"] = "طلباتي";
+}
+<div class="space-y-6">
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">@TempData["SuccessMessage"]</div>
+}
+
+<div id="liveQueueContent">
+    @if (!Model.Any())
+    {
+        <div class="bg-surface-white rounded-xl p-12 text-center border border-border-light shadow-sm">
+            <i class="bi bi-inbox text-gray-300 text-6xl mb-3 block"></i>
+            <h3 class="text-lg font-bold text-gray-700">لا توجد طلبات سابقة أو حالية</h3>
+        </div>
+    }
+    else
+    {
+        <div class="bg-surface-white rounded-xl shadow-sm border border-border-light overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-right text-sm">
+                    <thead class="table-header-navy text-white font-bold">
+                        <tr>
+                            <th class="py-4 px-4">رقم الطلب</th>
+                            <th class="py-4 px-4">نوع الورق</th>
+                            <th class="py-4 px-4">الكمية</th>
+                            <th class="py-4 px-4">الحالة</th>
+                            <th class="py-4 px-4">تاريخ الطلب</th>
+                            <th class="py-4 px-4">الملاحظات</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 font-semibold [&>tr:nth-child(odd)]:bg-white [&>tr:nth-child(even)]:bg-[#34435E]/5">
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="py-4 px-4 text-primary">#@item.RequestID</td>
+                                <td class="py-4 px-4">@item.PaperTypeName</td>
+                                <td class="py-4 px-4">@item.RequestedQuantity @QuantityHelper.RezmaUnit(item.RequestedQuantity)</td>
+                                <td class="py-4 px-4 text-xs">
+                                    <div class="flex flex-col gap-1">
+                                        @await Html.PartialAsync("_DepartmentStatusBadge", item.Status)
+                                        @if (item.IsException)
+                                        {
+                                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full w-fit"><i class="bi bi-exclamation-triangle-fill"></i>استثناء</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="py-4 px-4 text-xs text-gray-500">@item.RequestDate.ToEgyptTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                <td class="py-4 px-4 text-xs text-gray-500">@(item.Notes ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/live-queue.js" asp-append-version="true"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.LiveQueue && LiveQueue.start) {
+                LiveQueue.start({
+                    eventsUrl: '@Url.Action("LiveQueueEvents", "Request", new { area = "PaperManagement", queue = "myrequests" })'
+                });
+            }
+        });
+    </script>
+}

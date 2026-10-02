@@ -1,0 +1,1491 @@
+@model Resource_Management_System.Models.RequestQueueViewModel
+
+@{
+    ViewData["Title"] = "قائمة صرف الورق الجاهزة";
+
+    var filter =
+        ViewBag.Filter as Resource_Management_System.Models.RequestFilterViewModel
+        ?? new Resource_Management_System.Models.RequestFilterViewModel();
+
+}
+
+<link rel="stylesheet" href="~/css/live-queue.css" asp-append-version="true" />
+
+
+<div class="space-y-6">
+
+    <!-- ===================================================== -->
+    <!-- HEADER -->
+    <!-- ===================================================== -->
+
+    <div class="flex items-center justify-between">
+
+        <div>
+
+            <h2 class="text-2xl font-extrabold text-on-surface mb-1">
+                قائمة صرف الورق
+            </h2>
+
+        </div>
+
+
+        <span data-request-count
+              class="bg-primary/10 text-primary text-xs font-bold px-3 py-1.5 rounded-full">
+
+            إجمالي المعروض: @Model.Requests.Count طلب
+
+        </span>
+
+    </div>
+
+
+    <!-- ===================================================== -->
+    <!-- SUCCESS MESSAGE -->
+    <!-- ===================================================== -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold flex items-center gap-2">
+
+            <i class="bi bi-check-circle-fill"></i>
+
+            <span>
+                @TempData["SuccessMessage"]
+            </span>
+
+        </div>
+    }
+
+
+    <!-- ===================================================== -->
+    <!-- ERROR MESSAGE -->
+    <!-- ===================================================== -->
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm font-semibold flex items-center gap-2">
+
+            <i class="bi bi-exclamation-triangle-fill"></i>
+
+            <span>
+                @TempData["ErrorMessage"]
+            </span>
+
+        </div>
+    }
+
+
+    <!-- ===================================================== -->
+    <!-- FILTERS -->
+    <!-- ===================================================== -->
+    @await Html.PartialAsync(
+            "_ReviewQueueFilterPartial",
+            filter
+        )
+
+    <div id="liveQueueContent">
+
+        <!-- ===================================================== -->
+        <!-- EMPTY STATE -->
+        <!-- ===================================================== -->
+        @if (!Model.Requests.Any())
+        {
+            <div class="bg-surface-white rounded-xl p-12 text-center border border-border-light shadow-sm">
+
+                <i class="bi bi-box-seam text-gray-300 text-6xl mb-3 block"></i>
+
+                <h3 class="text-lg font-bold text-gray-700">
+                    لا توجد طلبات معتمدة بانتظار الصرف تطابق خيارات البحث
+                </h3>
+
+                <p class="text-sm text-gray-500 mt-1">
+                    جميع الطلبات المعتمدة تم تسليمها وتوثيقها أو لا تطابق الفلاتر.
+                </p>
+
+            </div>
+        }
+
+        else
+        {
+
+            <!-- ================================================= -->
+            <!-- TABLE -->
+            <!-- ================================================= -->
+
+            <div class="bg-surface-white rounded-xl shadow-sm border border-border-light overflow-hidden">
+
+                <div class="overflow-x-auto">
+
+                    <table class="w-full text-right text-sm">
+
+                        <thead class="bg-slate-800 border-b border-slate-900 text-white font-bold">
+
+                            <tr>
+
+                                <th class="py-4 px-4">
+                                    رقم الطلب
+                                </th>
+
+                                <th class="py-4 px-4">
+                                    القسم
+                                </th>
+
+                                <th class="py-4 px-4">
+                                    نوع الورق
+                                </th>
+
+                                <th class="py-4 px-4">
+                                    الكمية
+                                </th>
+
+                                <th class="py-4 px-4">
+                                    التاريخ
+                                </th>
+
+                                <th class="py-4 px-4">
+                                    صرف سريع
+                                </th>
+
+                                <th class="py-4 px-4">
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody id="requestTableBody"
+                               class="divide-y divide-slate-200 font-semibold [&>tr:nth-child(odd)]:bg-white [&>tr:nth-child(even)]:bg-[#34435E]/5 [&>tr:hover]:bg-cyan-50">
+
+                            @foreach (var item in Model.Requests)
+                            {
+                                <tr data-filter-row
+                                    data-request-id="@item.RequestID"
+                                    data-status="@item.Status"
+                                    data-search="@($"{item.RequestID} {item.DepartmentName} {item.PaperTypeName}".ToLower())">
+
+                                    <!-- REQUEST ID -->
+
+                                    <td class="py-4 px-4 text-primary">
+
+                                        #@item.RequestID
+
+                                    </td>
+
+
+                                    <!-- DEPARTMENT -->
+
+                                    <td class="py-4 px-4">
+
+                                        @item.DepartmentName
+
+                                    </td>
+
+
+                                    <!-- PAPER TYPE -->
+
+                                    <td class="py-4 px-4">
+
+                                        @item.PaperTypeName
+
+                                    </td>
+
+
+                                    <!-- QUANTITY -->
+
+                                    <td class="py-4 px-4">
+
+                                        @item.RequestedQuantity @QuantityHelper.RezmaUnit(item.RequestedQuantity)
+
+                                    </td>
+
+
+                                    <!-- DATE -->
+
+                                    <td class="py-4 px-4 text-xs text-gray-500">
+
+                                        @(item.ApprovedDate.HasValue
+                                            ? item.ApprovedDate.Value.ToEgyptTime().ToString("yyyy/MM/dd HH:mm")
+                                            : "-")
+
+                                    </td>
+
+
+                                    <!-- QUICK ISSUE -->
+
+                                    <td class="py-4 px-4">
+
+                                        @if (item.Status == Resource_Management_System.Common.RequestStatus.Approved)
+                                        {
+                                            <form asp-area="PaperManagement"
+                                                  asp-controller="Request"
+                                                  asp-action="Issue"
+                                                  method="post"
+                                                  class="flex items-center gap-1.5">
+
+                                                @Html.AntiForgeryToken()
+
+                                                <input type="hidden"
+                                                       name="requestId"
+                                                       value="@item.RequestID" />
+
+                                                <input type="text"
+                                                       name="notes"
+                                                       placeholder="ملاحظات..."
+                                                       class="px-2 py-1 text-xs border border-border-light rounded-md w-24 outline-none focus:border-primary" />
+
+                                                <button type="submit"
+                                                        onclick="return confirm('تأكيد خصم الكمية المصروفة وتسليم الورق للقسم؟');"
+                                                        class="bg-primary text-white text-xs font-bold px-2.5 py-1.5 rounded-md flex items-center gap-1 shrink-0">
+
+                                                    <i class="bi bi-box-arrow-right"></i>
+
+                                                    <span>
+                                                        صرف
+                                                    </span>
+
+                                                </button>
+
+                                            </form>
+                                        }
+                                        else
+                                        {
+                                            @await Html.PartialAsync("_StatusBadge", item.Status)
+                                        }
+
+                                    </td>
+
+
+                                    <!-- DETAILS -->
+
+                                    <td class="py-4 px-4">
+
+                                        <button type="button"
+                                                onclick="openRequest(@item.RequestID)"
+                                                class="px-3 py-1.5 rounded-lg bg-primary text-white text-xs">
+
+                                            التفاصيل
+
+                                        </button>
+
+                                    </td>
+
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+
+                <!-- ================================================= -->
+                <!-- PAGINATION -->
+                <!-- ================================================= -->
+                @if (Model.TotalPages > 1)
+                {
+                    <div class="flex items-center justify-center gap-2 py-4 border-t">
+
+                        @for (int p = 1; p <= Model.TotalPages; p++)
+                        {
+                            <button type="submit" form="queueFilterForm" name="page" value="@p"
+                                    class="@(p == Model.CurrentPage ? "bg-primary text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200") px-3 py-1.5 rounded-lg text-sm font-bold">
+                                @p
+                            </button>
+                        }
+
+                    </div>
+                }
+
+            </div>
+        }
+    </div>
+
+</div>
+
+
+<!-- ========================================================= -->
+<!-- DETAIL MODALS -->
+<!-- ========================================================= -->
+
+<div id="liveQueueModals">
+    @foreach (var item in Model.Requests)
+    {
+        <div id="request-@item.RequestID"
+             class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4"
+             onclick="if(event.target === this) closeRequest(@item.RequestID)">
+
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+
+
+                <!-- MODAL HEADER -->
+
+                <div class="flex items-center justify-between p-5 border-b">
+
+                    <div>
+
+                        <h3 class="text-xl font-extrabold text-gray-800">
+
+                            تفاصيل الطلب #@item.RequestID
+
+                        </h3>
+
+                        <p class="text-sm text-gray-500 mt-1">
+
+                            @item.DepartmentName
+                            —
+                            @item.PaperTypeName
+
+                        </p>
+
+                    </div>
+
+
+                    <button type="button"
+                            onclick="closeRequest(@item.RequestID)"
+                            class="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
+
+                        <i class="bi bi-x-lg"></i>
+
+                    </button>
+
+                </div>
+
+
+                <!-- MODAL BODY -->
+
+                <div class="p-5 space-y-6">
+
+
+                    <!-- BASIC INFORMATION -->
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+
+                        <div class="bg-slate-50 rounded-xl p-4">
+
+                            <div class="text-xs text-gray-500 mb-1">
+                                رقم الطلب
+                            </div>
+
+                            <div class="font-extrabold text-primary">
+                                #@item.RequestID
+                            </div>
+
+                        </div>
+
+
+                        <div class="bg-slate-50 rounded-xl p-4">
+
+                            <div class="text-xs text-gray-500 mb-1">
+                                القسم
+                            </div>
+
+                            <div class="font-bold">
+                                @item.DepartmentName
+                            </div>
+
+                        </div>
+
+
+                        <div class="bg-slate-50 rounded-xl p-4">
+
+                            <div class="text-xs text-gray-500 mb-1">
+                                نوع الورق
+                            </div>
+
+                            <div class="font-bold">
+                                @item.PaperTypeName
+                            </div>
+
+                        </div>
+
+
+                        <div class="bg-slate-50 rounded-xl p-4">
+
+                            <div class="text-xs text-gray-500 mb-1">
+                                الكمية
+                            </div>
+
+                            <div class="font-extrabold text-primary">
+                                @item.RequestedQuantity @QuantityHelper.RezmaUnit(item.RequestedQuantity)
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- STATUS -->
+                    @{
+                        var (modalStatusLabel, modalStatusBadgeClass) = item.Status switch
+                        {
+                            Resource_Management_System.Common.RequestStatus.PendingITReview => ("تم التقديم (قيد مراجعة IT)", "bg-blue-600 text-white"),
+                            Resource_Management_System.Common.RequestStatus.PendingApproverOne => ("قيد مراجعة نائب رئيس الإدارة", "bg-amber-500 text-white"),
+                            Resource_Management_System.Common.RequestStatus.PendingApproverTwo => ("قيد مراجعة مدير الإدارة", "bg-amber-500 text-white"),
+                            Resource_Management_System.Common.RequestStatus.PendingITReReview => ("تم التقديم (قيد مراجعة IT)", "bg-blue-600 text-white"),
+                            Resource_Management_System.Common.RequestStatus.Approved => ("جاهز للصرف", "bg-emerald-600 text-white"),
+                            Resource_Management_System.Common.RequestStatus.Issued => ("تم الصرف والتسليم", "bg-teal-600 text-white"),
+                            Resource_Management_System.Common.RequestStatus.Rejected or "RejectedByIT" => ("مرفوض", "bg-red-600 text-white"),
+                            _ => (item.Status, "bg-gray-500 text-white")
+                        };
+                    }
+
+                    <div class="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl p-4">
+
+                        <div class="flex items-center gap-2">
+
+                            <i class="bi bi-info-circle-fill text-primary"></i>
+
+                            <span class="text-sm font-bold text-gray-800">
+                                حالة الطلب
+                            </span>
+
+                        </div>
+
+                        <span class="@modalStatusBadgeClass text-xs font-bold px-3 py-1.5 rounded-full">
+
+                            @modalStatusLabel
+
+                        </span>
+
+                    </div>
+
+
+                    <!-- APPROVAL DATE -->
+                    @if (item.ApprovedDate.HasValue)
+                    {
+                        <div class="text-sm text-gray-600">
+
+                            <span class="font-bold">
+                                تاريخ الاعتماد:
+                            </span>
+
+                            @item.ApprovedDate.Value.ToEgyptTime().ToString("yyyy/MM/dd HH:mm")
+
+                        </div>
+                    }
+
+
+                    <!-- ACTIVITY LOG -->
+
+                    <div>
+
+                        <div class="flex items-center gap-2 mb-3">
+
+                            <i class="bi bi-clock-history text-primary"></i>
+
+                            <h4 class="font-extrabold text-gray-800">
+                                سجل الطلب
+                            </h4>
+
+                        </div>
+
+
+                        <div id="timeline-@item.RequestID"
+                             class="min-h-[80px]">
+
+                            <div class="flex items-center justify-center py-6 text-gray-400 text-sm">
+
+                                <i class="bi bi-hourglass-split ml-2"></i>
+
+                                جاري تحميل سجل الطلب...
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- ISSUE -->
+                    @if (item.Status == Resource_Management_System.Common.RequestStatus.Approved)
+                    {
+                        <div class="border-t pt-5">
+
+                            <form asp-area="PaperManagement"
+                                  asp-controller="Request"
+                                  asp-action="Issue"
+                                  method="post"
+                                  class="space-y-3">
+
+                                @Html.AntiForgeryToken()
+
+                                <input type="hidden"
+                                       name="requestId"
+                                       value="@item.RequestID" />
+
+                                <label class="block text-sm font-bold text-gray-700">
+
+                                    ملاحظات الصرف
+                                    <span class="text-gray-400 font-normal">
+                                        (اختيارية)
+                                    </span>
+
+                                </label>
+
+
+                                <textarea name="notes"
+                                          maxlength="500"
+                                          rows="3"
+                                          class="w-full border border-border-light rounded-lg px-3 py-2 text-sm outline-none focus:border-primary"
+                                          placeholder="أضف ملاحظات الصرف إن وجدت..."></textarea>
+
+
+                                <button type="submit"
+                                        onclick="return confirm('تأكيد خصم الكمية المصروفة وتسليم الورق للقسم؟');"
+                                        class="w-full bg-primary text-white px-4 py-3 rounded-lg font-bold flex items-center justify-center gap-2">
+
+                                    <i class="bi bi-box-arrow-right"></i>
+
+                                    صرف الطلب
+
+                                </button>
+
+                            </form>
+
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="border-t pt-4">
+                            <div class="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center text-xs text-gray-500 flex items-center justify-center gap-1.5">
+                                <i class="bi bi-info-circle text-gray-400"></i>
+                                <span>هذا الطلب ليس في حالة جاهز للصرف حالياً ولا يمكن صرفه.</span>
+                            </div>
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+
+        </div>
+    }
+</div>
+
+
+@section Scripts {
+
+    <script src="~/js/live-queue.js" asp-append-version="true"></script>
+    <script>
+
+        // =========================================================
+        // CONFIGURATION
+        // =========================================================
+
+        const ISSUE_QUEUE_STORAGE_KEY =
+            'unseenIssueQueueRequestIds_v2';
+
+        // =========================================================
+        // EVENT COLORS
+        // =========================================================
+
+        function eventColorClasses(label) {
+
+            if (label.indexOf('رفض') !== -1) {
+
+                return {
+                    border: 'border-red-500',
+                    bg: 'bg-red-50'
+                };
+
+            }
+
+            if (
+                label.indexOf('اعتماد') !== -1 ||
+                label.indexOf('موافقة') !== -1
+            ) {
+
+                return {
+                    border: 'border-emerald-500',
+                    bg: 'bg-emerald-50'
+                };
+
+            }
+
+            if (label.indexOf('صرف') !== -1) {
+
+                return {
+                    border: 'border-teal-500',
+                    bg: 'bg-teal-50'
+                };
+
+            }
+
+            if (label.indexOf('تقديم') !== -1) {
+
+                return {
+                    border: 'border-slate-400',
+                    bg: 'bg-slate-50'
+                };
+
+            }
+
+            return {
+                border: 'border-primary',
+                bg: 'bg-primary/5'
+            };
+
+        }
+
+
+        // =========================================================
+        // OPEN MODAL
+        // =========================================================
+
+        function openRequest(id) {
+
+            clearNewMark(id);
+
+
+            const modal =
+                document.getElementById(
+                    'request-' + id
+                );
+
+
+            if (!modal) {
+
+                console.error(
+                    'Request modal not found:',
+                    id
+                );
+
+                return;
+
+            }
+
+
+            modal.classList.replace(
+                'hidden',
+                'flex'
+            );
+
+            void LiveQueue.loadRequestDetails(id);
+
+
+            const box =
+                document.getElementById(
+                    'timeline-' + id
+                );
+
+
+            if (
+                box &&
+                !box.dataset.loaded
+            ) {
+
+                const controller =
+                    new AbortController();
+
+
+                const timeout =
+                    setTimeout(
+                        function() {
+                            controller.abort();
+                        },
+                        10000
+                    );
+
+
+                fetch(
+                    '/PaperManagement/Request/ActivityLog?requestId=' +
+                    encodeURIComponent(id),
+                    {
+                        signal: controller.signal
+                    }
+                )
+                    .then(
+                        function(response) {
+
+                            clearTimeout(timeout);
+
+
+                            if (!response.ok) {
+
+                                throw new Error(
+                                    'HTTP ' +
+                                    response.status
+                                );
+
+                            }
+
+
+                            return response.json();
+
+                        }
+                    )
+                    .then(
+                        function(events) {
+
+                            box.dataset.loaded = '1';
+
+
+                            if (!events.length) {
+
+                                box.innerHTML =
+                                    '<p class="text-gray-400 text-sm">' +
+                                    'لا يوجد سجل بعد.' +
+                                    '</p>';
+
+                                return;
+
+                            }
+
+
+                            box.innerHTML =
+                                '<ol class="space-y-3">' +
+
+                                events.map(
+                                    function(e) {
+
+                                        const colors =
+                                            eventColorClasses(
+                                                e.label
+                                            );
+
+
+                                        return (
+
+                                            '<li class="border-r-4 ' +
+                                            colors.border +
+                                            ' ' +
+                                            colors.bg +
+                                            ' rounded-lg p-3">' +
+
+                                            '<div class="flex justify-between items-start gap-3">' +
+
+                                            '<span class="font-bold text-sm">' +
+                                            e.label +
+                                            '</span>' +
+
+                                            '<span class="text-xs text-gray-400 whitespace-nowrap">' +
+                                            e.createdDate +
+                                            '</span>' +
+
+                                            '</div>' +
+
+                                            (
+                                                e.quantity !== null &&
+                                                    e.quantity !== undefined
+
+                                                    ? '<div class="text-sm font-bold text-primary mt-2">' +
+                                                    'الكمية: ' +
+                                                    e.quantity +
+                                                    ' ' + rezmaUnit(e.quantity) +
+                                                    '</div>'
+
+                                                    : ''
+                                            ) +
+
+                                            (
+                                                e.note
+
+                                                    ? '<div class="text-sm mt-2 bg-white/80 rounded-lg px-3 py-2 border border-black/5 flex items-start gap-2">' +
+                                                    '<i class="bi bi-chat-left-quote-fill text-gray-400 mt-0.5"></i>' +
+                                                    '<span class="text-gray-700 italic leading-relaxed break-all break-words">' +
+                                                    e.note +
+                                                    '</span>' +
+                                                    '</div>'
+
+                                                    : ''
+                                            ) +
+
+                                            '</li>'
+
+                                        );
+
+                                    }
+                                ).join('') +
+
+                                '</ol>';
+
+                        }
+                    )
+                    .catch(
+                        function(error) {
+
+                            box.innerHTML =
+                                '<p class="text-red-500 text-sm">' +
+
+                                (
+                                    error &&
+                                        error.name === 'AbortError'
+
+                                        ? 'انتهت مهلة تحميل السجل - حاول مرة أخرى.'
+
+                                        : 'تعذر تحميل السجل.'
+                                ) +
+
+                                '</p>';
+
+                        }
+                    );
+
+            }
+
+        }
+
+
+        // =========================================================
+        // CLOSE MODAL
+        // =========================================================
+
+        function closeRequest(id) {
+
+            const modal =
+                document.getElementById(
+                    'request-' + id
+                );
+
+
+            if (!modal) {
+                return;
+            }
+
+
+            modal.classList.replace(
+                'flex',
+                'hidden'
+            );
+
+        }
+
+
+        // =========================================================
+        // PERSISTENT NEW STATE
+        // =========================================================
+
+        function getUnseenNewIds() {
+
+            try {
+
+                const value =
+                    JSON.parse(
+                        localStorage.getItem(
+                            ISSUE_QUEUE_STORAGE_KEY
+                        ) || '[]'
+                    );
+
+
+                return value
+                    .map(Number)
+                    .filter(
+                        function(id) {
+                            return Number.isFinite(id);
+                        }
+                    );
+
+            }
+            catch (error) {
+
+                return [];
+
+            }
+
+        }
+
+
+        function setUnseenNewIds(ids) {
+
+            const unique =
+                [
+                    ...new Set(
+                        ids.map(Number)
+                    )
+                ];
+
+
+            localStorage.setItem(
+                ISSUE_QUEUE_STORAGE_KEY,
+                JSON.stringify(unique)
+            );
+
+        }
+
+
+        // =========================================================
+        // MARK REQUEST AS NEW
+        // =========================================================
+
+        function markRowAsNew(id) {
+
+            const numericId =
+                Number(id);
+
+
+            const row =
+                document.querySelector(
+                    '#requestTableBody tr[data-request-id="' +
+                    numericId +
+                    '"]'
+                );
+
+
+            if (!row) {
+                return;
+            }
+
+
+            row.classList.add(
+                'new-request-row'
+            );
+
+
+            const firstCell =
+                row.querySelector('td');
+
+
+            if (
+                firstCell &&
+                !firstCell.querySelector(
+                    '.new-badge'
+                )
+            ) {
+
+                firstCell.insertAdjacentHTML(
+                    'beforeend',
+
+                    ' <span class="new-badge badge-new">' +
+                    'جديد' +
+                    '</span>'
+                );
+
+            }
+
+        }
+
+
+        // =========================================================
+        // REMOVE NEW STATE
+        // =========================================================
+
+        function clearNewMark(id) {
+
+            const numericId =
+                Number(id);
+
+
+            const remaining =
+                getUnseenNewIds()
+                    .filter(
+                        function(value) {
+
+                            return Number(value) !==
+                                numericId;
+
+                        }
+                    );
+
+
+            setUnseenNewIds(
+                remaining
+            );
+
+
+            const row =
+                document.querySelector(
+                    '#requestTableBody tr[data-request-id="' +
+                    numericId +
+                    '"]'
+                );
+
+
+            if (!row) {
+                return;
+            }
+
+
+            row.classList.remove(
+                'new-request-row'
+            );
+
+
+            const badge =
+                row.querySelector(
+                    '.new-badge'
+                );
+
+
+            if (badge) {
+
+                badge.classList.add(
+                    'fading-out'
+                );
+
+
+                setTimeout(
+                    function() {
+
+                        if (badge.parentNode) {
+
+                            badge.parentNode.removeChild(
+                                badge
+                            );
+
+                        }
+
+                    },
+                    350
+                );
+
+            }
+
+        }
+
+
+        // =========================================================
+        // RESTORE SAVED NEW BADGES
+        // =========================================================
+
+        function restoreSavedNewRequests() {
+
+            getUnseenNewIds()
+                .forEach(
+                    function(id) {
+
+                        markRowAsNew(id);
+
+                    }
+                );
+
+        }
+
+
+        // =========================================================
+        // CURRENT REQUEST IDS
+        // =========================================================
+
+        function getCurrentRequestIds() {
+
+            const rows =
+                document.querySelectorAll(
+                    '#requestTableBody tr[data-request-id]'
+                );
+
+
+            const ids = [];
+
+
+            rows.forEach(
+                function(row) {
+
+                    const id =
+                        Number(
+                            row.dataset.requestId
+                        );
+
+
+                    if (
+                        Number.isFinite(id)
+                    ) {
+
+                        ids.push(id);
+
+                    }
+
+                }
+            );
+
+
+            return ids;
+
+        }
+
+
+        // =========================================================
+        // GET CURRENT PAGE URL
+        //
+        // This is intentional.
+        //
+        // We do NOT call NewApproverRequests.
+        // We ask the actual IssueQueue action what
+        // the IT user should currently see.
+        // =========================================================
+
+        function getIssueQueueUrl() {
+
+            return window.location.href;
+
+        }
+
+
+        // =========================================================
+        // CHECK FOR NEW ISSUE QUEUE REQUESTS
+        // =========================================================
+
+        let issueQueuePolling =
+            null;
+
+
+        let issueQueueCheckRunning =
+            false;
+
+
+        async function checkForNewIssueRequests() {
+
+            if (issueQueueCheckRunning) {
+
+                return;
+
+            }
+
+
+            issueQueueCheckRunning =
+                true;
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        getIssueQueueUrl(),
+                        {
+                            method: 'GET',
+
+                            headers: {
+                                'X-Requested-With':
+                                    'XMLHttpRequest',
+
+                                'Cache-Control':
+                                    'no-cache'
+                            },
+
+                            cache: 'no-store'
+                        }
+                    );
+
+
+                if (!response.ok) {
+
+                    console.debug(
+                        'Issue Queue polling returned:',
+                        response.status
+                    );
+
+                    return;
+
+                }
+
+
+                const html =
+                    await response.text();
+
+
+                const parser =
+                    new DOMParser();
+
+
+                const documentFromServer =
+                    parser.parseFromString(
+                        html,
+                        'text/html'
+                    );
+
+
+                const serverBody =
+                    documentFromServer.querySelector(
+                        '#requestTableBody'
+                    );
+
+
+                if (!serverBody) {
+
+                    return;
+
+                }
+
+
+                const serverRows =
+                    Array.from(
+                        serverBody.querySelectorAll(
+                            'tr[data-request-id]'
+                        )
+                    );
+
+
+                const currentIds =
+                    getCurrentRequestIds();
+
+
+                const serverIds =
+                    serverRows.map(
+                        function(row) {
+
+                            return Number(
+                                row.dataset.requestId
+                            );
+
+                        }
+                    );
+
+
+                const genuinelyNewIds =
+                    serverIds.filter(
+                        function(id) {
+
+                            return !currentIds.includes(
+                                id
+                            );
+
+                        }
+                    );
+
+
+                if (
+                    genuinelyNewIds.length === 0
+                ) {
+
+                    return;
+
+                }
+
+
+                const tbody =
+                    document.getElementById(
+                        'requestTableBody'
+                    );
+
+
+                if (!tbody) {
+
+                    return;
+
+                }
+
+
+                let unseen =
+                    getUnseenNewIds();
+
+
+                /*
+                 * Add newest requests to the
+                 * beginning of the queue.
+                 */
+
+                serverRows
+                    .filter(
+                        function(row) {
+
+                            return genuinelyNewIds.includes(
+                                Number(
+                                    row.dataset.requestId
+                                )
+                            );
+
+                        }
+                    )
+                    .reverse()
+                    .forEach(
+                        function(serverRow) {
+
+                            const id =
+                                Number(
+                                    serverRow.dataset.requestId
+                                );
+
+
+                            /*
+                             * Prevent duplicate insertion
+                             * if another polling cycle somehow
+                             * sees the same request.
+                             */
+
+                            const existing =
+                                tbody.querySelector(
+                                    'tr[data-request-id="' +
+                                    id +
+                                    '"]'
+                                );
+
+
+                            if (existing) {
+
+                                return;
+
+                            }
+
+
+                            /*
+                             * Insert the row.
+                             */
+
+                            tbody.insertAdjacentHTML(
+                                'afterbegin',
+                                serverRow.outerHTML
+                            );
+
+
+                            /*
+                             * Insert its modal too.
+                             */
+
+                            const serverModal =
+                                documentFromServer.getElementById(
+                                    'request-' + id
+                                );
+
+
+                            if (serverModal) {
+
+                                /*
+                                 * Only add it if it does not
+                                 * already exist.
+                                 */
+
+                                if (
+                                    !document.getElementById(
+                                        'request-' + id
+                                    )
+                                ) {
+
+                                    document.body.insertAdjacentHTML(
+                                        'beforeend',
+                                        serverModal.outerHTML
+                                    );
+
+                                }
+
+                            }
+
+
+                            /*
+                             * Save NEW state permanently
+                             * until the user opens Details.
+                             */
+
+                            if (
+                                !unseen.some(
+                                    function(value) {
+
+                                        return Number(value) ===
+                                            id;
+
+                                    }
+                                )
+                            ) {
+
+                                unseen.push(id);
+
+                            }
+
+
+                            markRowAsNew(id);
+
+                        }
+                    );
+
+
+                setUnseenNewIds(
+                    unseen
+                );
+
+
+                /*
+                 * Update count.
+                 */
+
+                const countBadge =
+                    document.querySelector(
+                        '[data-request-count]'
+                    );
+
+
+                if (countBadge) {
+
+                    const newCount =
+                        tbody.querySelectorAll(
+                            'tr[data-request-id]'
+                        ).length;
+
+
+                    countBadge.textContent =
+                        'إجمالي المعروض: ' +
+                        newCount +
+                        ' طلب';
+
+                }
+
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * We do NOT reload the page.
+                 *
+                 * Therefore an open modal stays open.
+                 *
+                 * Someone typing inside the modal
+                 * will not lose their text.
+                 */
+
+            }
+            catch (error) {
+
+                console.debug(
+                    'Issue Queue live refresh failed:',
+                    error
+                );
+
+            }
+            finally {
+
+                issueQueueCheckRunning =
+                    false;
+
+            }
+
+        }
+
+
+        // =========================================================
+        // START
+        // =========================================================
+
+        document.addEventListener(
+            'DOMContentLoaded',
+            function() {
+
+                /*
+                 * First restore anything the user
+                 * had not opened before.
+                 */
+
+                restoreSavedNewRequests();
+
+
+                LiveQueue.start({
+                    eventsUrl:
+                        '@Url.Action("LiveQueueEvents", "Request", new { area = "PaperManagement", queue = "issue" })',
+
+                    onItemsAdded:
+                        function(ids) {
+
+                            const unseen =
+                                getUnseenNewIds();
+
+                            ids.forEach(
+                                function(id) {
+
+                                    if (!unseen.includes(Number(id))) {
+                                        unseen.push(Number(id));
+                                    }
+
+                                    markRowAsNew(id);
+
+                                }
+                            );
+
+                            setUnseenNewIds(unseen);
+
+                        },
+
+                    onSynced:
+                        restoreSavedNewRequests
+                });
+
+            }
+        );
+
+
+    </script>
+
+}

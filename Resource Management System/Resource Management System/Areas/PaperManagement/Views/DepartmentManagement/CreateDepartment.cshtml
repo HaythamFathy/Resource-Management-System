@@ -1,0 +1,32 @@
+@model Resource_Management_System.Models.CreateDepartmentViewModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="utf-8" />
+    <title>إضافة قسم</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="~/css/paper-management.css" />
+</head>
+<body class="p-8 min-h-screen flex items-center justify-center">
+    <main class="w-full max-w-md bg-white rounded-xl shadow p-8">
+        <h1 class="text-xl font-bold mb-2">إضافة قسم جديد</h1>
+        <div asp-validation-summary="All" class="mb-4 text-red-600 text-sm"></div>
+        <form asp-action="CreateDepartment" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <div>
+                <label asp-for="DepartmentName" class="block text-sm font-semibold mb-1"></label>
+                <input asp-for="DepartmentName" class="w-full border rounded-lg px-3 py-2" />
+            </div>
+            <div>
+                <label asp-for="QuotaLimit" class="block text-sm font-semibold mb-1"></label>
+                <input asp-for="QuotaLimit" type="number" min="1" class="w-full border rounded-lg px-3 py-2" />
+            </div>
+            <button class="w-full bg-[#34435E] text-white py-2.5 rounded-lg font-semibold">حفظ ومتابعة إضافة المستخدم</button>
+            <a href="/PaperManagement/DepartmentManagement/Index" class="block text-center text-gray-500 text-sm">إلغاء</a>
+        </form>
+    </main>
+</body>
+</html>

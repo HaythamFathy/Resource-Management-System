@@ -1,0 +1,795 @@
+@model Resource_Management_System.Models.ReportsCenterModel
+@{
+    ViewData["Title"] = "مركز التقارير";
+    var root = "/PaperManagement/ReportsCenter";
+    var isContractDetail = Model.Tab == "contract";
+    var hasSummary = (isContractDetail && Model.SelectedContract != null) || (Model.Tab == "period" && Model.PeriodStart.HasValue);
+    var visibleDepts = Model.DepartmentIssues.Where(d => Model.DepartmentIds.Count == 0 || Model.DepartmentIds.Contains(d.ID)).ToList();
+    var visibleIssueTypes = Model.PaperTypes.Where(p => visibleDepts.Any(d => d.Quantity(p) > 0)).ToList();
+    var showTotal = visibleIssueTypes.Count > 1 || visibleIssueTypes.Any(p => !string.Equals(p, "A4", StringComparison.OrdinalIgnoreCase));
+    var scopeQuery = $"tab={Model.Tab}&contractId={Model.ContractId}&period={Model.Period}&year={Model.Year}&yearFrom={Model.YearFrom}&yearTo={Model.YearTo}&fromDate={Model.FromDate?.ToString("yyyy-MM-dd")}&toDate={Model.ToDate?.ToString("yyyy-MM-dd")}";
+    var detailIdsQuery = string.Concat(Model.DepartmentIds.Select(id => "&departmentIds=" + id));
+}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+<style>
+    .rc-tabs {
+        display: grid;
+        grid-template-columns: repeat(4,minmax(0,1fr));
+        gap: 12px
+    }
+
+    .rc-tab {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        border: 1px solid #d5dfeb;
+        border-radius: 14px;
+        padding: 18px 10px;
+        background: #fff;
+        color: #34435e;
+        font-size: 17px;
+        font-weight: 850;
+        text-decoration: none;
+        min-height: 76px
+    }
+
+        .rc-tab.rc-on {
+            background: #34435e;
+            color: #fff;
+            border-color: #34435e;
+            box-shadow: 0 6px 18px #34435e20
+        }
+
+        .rc-tab:not(.rc-on):hover {
+            background: #f0f5fa
+        }
+
+    .rc-input {
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid #cad7e8;
+        border-radius: 11px;
+        padding: 8px 13px;
+        background: #fff;
+        font-size: 15px;
+        color: #21334d
+    }
+
+    .rc-label {
+        display: block;
+        margin-bottom: 7px;
+        font-size: 14px;
+        font-weight: 800;
+        color: #334155
+    }
+
+    .rc-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        border-radius: 11px;
+        background: #34435e;
+        color: #fff;
+        padding: 11px 17px;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 800;
+        white-space: nowrap;
+        border: 0;
+        cursor: pointer
+    }
+
+        .rc-btn.rc-excel {
+            background: #07855d
+        }
+
+        .rc-btn.rc-light {
+            background: #f3f6fa;
+            color: #34435e;
+            border: 1px solid #d8dbe2
+        }
+
+        .rc-btn:hover {
+            filter: brightness(.96)
+        }
+
+    .rc-th {
+        background: #1f2937;
+        color: #fff;
+        font-size: 15px;
+        padding: 14px 12px;
+        text-align: right
+    }
+
+    .rc-td {
+        padding: 13px 12px;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 15px;
+        color: #263750;
+        vertical-align: middle
+    }
+
+    .rc-card {
+        border: 1px solid #d7e1ed;
+        border-radius: 17px;
+        background: #fff;
+        padding: 19px
+    }
+
+    .rc-metric {
+        font-size: 28px;
+        font-weight: 900;
+        color: #34435e;
+        line-height: 1.3
+    }
+
+    .rc-total-info {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        align-items: flex-start
+    }
+
+        .rc-total-info .rc-contract-quantity {
+            color: #334155;
+            font-weight: 900;
+            font-size: 19px;
+            letter-spacing: .2px
+        }
+
+    .rc-dept-list {
+        display: grid;
+        grid-template-columns: repeat(2,minmax(0,1fr));
+        gap: 12px;
+        padding: 5px
+    }
+
+    .rc-dept-group {
+        border: 1px solid #d5dfeb;
+        border-radius: 12px;
+        padding: 10px;
+        max-height: 285px;
+        overflow-y: auto
+    }
+
+    .rc-dept-group-title {
+        width: 100%;
+        border: 1px solid #d4e0ed;
+        border-radius: 10px;
+        padding: 9px 6px;
+        background: #f2f7fb;
+        color: #34435e;
+        font-size: 13px;
+        font-weight: 850;
+        text-align: right;
+        margin-bottom: 7px
+    }
+
+    .rc-dept-group small {
+        font-size: 11px;
+        color: #64748b;
+        margin-right: auto
+    }
+
+    .rc-dept-list label {
+        border-bottom: 1px solid #f1f5f9
+    }
+
+    .rc-dept-list label {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 7px;
+        border-radius: 7px;
+        font-size: 13px;
+        cursor: pointer
+    }
+
+        .rc-dept-list label:hover {
+            background: #f1f5f9
+        }
+
+    .rc-dept-picker summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 11px 13px;
+        border: 1px solid #ccd7e7;
+        border-radius: 11px;
+        font-size: 14px;
+        font-weight: 800
+    }
+
+        .rc-dept-picker summary::-webkit-details-marker {
+            display: none
+        }
+
+    .rc-dept-panel {
+        border: 1px solid #d6e1ef;
+        border-radius: 12px;
+        margin-top: 6px;
+        padding: 12px;
+        background: #fff;
+        box-shadow: 0 8px 28px #0f172a15
+    }
+
+    .rc-live-busy {
+        opacity: .6;
+        pointer-events: none
+    }
+
+    .rc-official-frame {
+        display: block;
+        width: 100%;
+        min-height: 200px;
+        height: 200px; /* content is measured after the original report renders */
+        overflow: hidden;
+        max-width: 100%;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff
+    }
+
+    @@media(max-width:1024px) {
+        .rc-tabs {
+            grid-template-columns: repeat(2,minmax(0,1fr))
+        }
+    }
+
+    @@media(max-width:600px) {
+        .rc-tabs {
+            grid-template-columns: 1fr 1fr;
+            gap: 7px
+        }
+
+        .rc-tab {
+            padding: 10px 6px;
+            font-size: 13px;
+            min-height: 63px
+        }
+
+        .rc-card {
+            padding: 12px
+        }
+
+        .rc-dept-list {
+            grid-template-columns: 1fr
+        }
+    }
+
+    @@media print {
+        @@page {
+            size: A4 landscape;
+            margin: 10mm
+        }
+
+        .rc-controls, .rc-no-print, body > header {
+            display: none !important
+        }
+
+        main#paperPageContent {
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important
+        }
+
+        .rc-card {
+            break-inside: auto;
+            box-shadow: none !important;
+            width: 100% !important;
+        }
+        /* Keep the short metric cards together but allow long detail tables to continue
+               on subsequent landscape A4 pages instead of leaving a near-blank first page. */
+        #rc-live .grid > .rc-card {
+            break-inside: avoid;
+        }
+
+        #rc-live .rc-table-wrapper {
+            break-inside: auto;
+        }
+
+        #rc-live {
+            width: 100% !important;
+            max-width: none !important;
+        }
+
+        html, body {
+            width: 100% !important;
+            overflow: visible !important;
+        }
+
+        @@page {
+            size: A4 landscape;
+            margin: 8mm;
+        }
+
+        #reports-center-results {
+            border: 0 !important;
+            box-shadow: none !important
+        }
+
+        .rc-table-wrapper {
+            overflow: visible !important
+        }
+
+            .rc-table-wrapper table {
+                min-width: 0 !important;
+                width: 100% !important
+            }
+
+        .rc-th, .rc-td {
+            font-size: 10px !important;
+            padding: 4px !important
+        }
+    }
+</style>
+<div class="space-y-4" dir="rtl" id="rc-page">
+    <header class="rc-controls rc-card">
+        <h1 class="text-2xl font-black text-slate-900">التقارير</h1>
+    </header>
+    <nav class="rc-controls rc-tabs" aria-label="أنواع التقارير">
+        <a class="rc-tab @(Model.Tab == "contracts" ? "rc-on" : "")" href="@(root)?tab=contracts"><i class="bi bi-files"></i><span>سجل العقود</span></a>
+        <a class="rc-tab @(Model.Tab == "official" ? "rc-on" : "")" href="@(root)?tab=official"><i class="bi bi-building"></i><span>التقرير الرئيسي</span></a>
+        <a class="rc-tab @(Model.Tab == "contract" ? "rc-on" : "")" href="@(root)?tab=contract"><i class="bi bi-file-earmark-bar-graph"></i><span>تقرير عقد محدد</span></a>
+        <a class="rc-tab @(Model.Tab == "period" ? "rc-on" : "")" href="@(root)?tab=period"><i class="bi bi-calendar-range"></i><span>التقرير السنوي والفترات</span></a>
+    </nav>
+    @if (!string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="rounded-xl border border-red-300 bg-red-50 text-red-800 p-4 font-bold">@Model.Error</div>
+    }
+    @if (Model.Tab == "official")
+    {
+        <section id="reports-center-results" class="rc-card space-y-3">
+            <!-- This is the EXACT existing report served by its original controller/view. Its file is unchanged. -->
+            <iframe id="officialReportFrame" class="rc-official-frame" title="بيان صرف الجهات الأصلي" src="/PaperManagement/Request/Reports" scrolling="no" onload="if(window.rcEmbedOfficial)rcEmbedOfficial(this)"></iframe>
+        </section>
+    }
+    else if (Model.Tab == "contracts")
+    {
+        <section class="rc-controls rc-card space-y-3">
+            <h2 class="font-black text-xl">سجل العقود</h2>
+            <form method="get" action="@root" class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <input type="hidden" name="tab" value="contracts" />
+                <div>
+                    <label class="rc-label" for="yearFrom">من سنة (سنة بدء العقد)</label>
+                    <select id="yearFrom" class="rc-input" name="yearFrom">
+                        <option value="">جميع السنوات</option>
+                        @foreach (var y in Model.YearOptions)
+                        {
+                            <option value="@y" selected="@(Model.YearFrom == y)">@y</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label class="rc-label" for="yearTo">إلى سنة</label>
+                    <select id="yearTo" class="rc-input" name="yearTo">
+                        <option value="">جميع السنوات</option>
+                        @foreach (var y in Model.YearOptions)
+                        {
+                            <option value="@y" selected="@(Model.YearTo == y)">@y</option>
+                        }
+                    </select>
+                </div>
+                <div class="flex flex-wrap gap-2"><button class="rc-btn" type="submit">عرض البيانات</button><a class="rc-btn rc-light" href="@(root)?tab=contracts">إلغاء الفلتر</a></div>
+            </form>
+        </section>
+        <section id="reports-center-results" class="rc-card space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="font-black text-xl">العقود (@Model.VisibleContracts.Count)</h2>
+                <div class="rc-no-print flex gap-2"><a class="rc-btn rc-excel" href="@(root)/Export?tab=contracts&amp;yearFrom=@Model.YearFrom&amp;yearTo=@Model.YearTo">تصدير Excel</a><button type="button" class="rc-btn rc-light" onclick="window.print()">طباعة</button></div>
+            </div>
+            <div class="rc-table-wrapper overflow-x-auto">
+                <table class="w-full min-w-[980px] border-collapse text-right">
+                    <thead><tr><th class="rc-th">العقد</th><th class="rc-th">الفترة</th><th class="rc-th">الحالة</th><th class="rc-th">كمية التعاقد</th><th class="rc-th">افتتاحي</th><th class="rc-th">المورد</th><th class="rc-th">المصروف</th><th class="rc-th">الرصيد</th><th class="rc-th rc-no-print">التقرير</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in Model.VisibleContracts)
+                        {
+                            <tr>
+                                <td class="rc-td font-bold">@c.Name<div class="text-xs text-slate-500">@c.Number</div></td>
+                                <td class="rc-td" dir="ltr">@c.StartDate.ToString("yyyy/MM/dd") → @(c.EndDate?.ToString("yyyy/MM/dd") ?? "—")</td>
+                                <td class="rc-td font-bold">@c.Status</td>
+                                <td class="rc-td">
+                                    <div class="rc-total-info" title="كمية التعاقد معلومة مستقلة عن الوارد والمصروف والرصيد">
+                                        <span class="rc-contract-quantity">@((c.ContractedA4.HasValue || c.ContractedA3.HasValue) ? ((c.ContractedA4 ?? 0) + (c.ContractedA3 ?? 0)).ToString("N0") : "—")</span>
+                                    </div>
+                                </td>
+                                <td class="rc-td font-bold">@c.Opening.ToString("N0")</td>
+                                <td class="rc-td text-emerald-700 font-bold">@c.Received.ToString("N0")</td>
+                                <td class="rc-td font-bold">@c.Issued.ToString("N0")</td>
+                                <td class="rc-td font-black">@c.Balance.ToString("N0")</td>
+                                <td class="rc-td rc-no-print"><a class="font-bold text-sky-700 underline" href="@(root)?tab=contract&amp;contractId=@c.ContractID">عرض تقرير العقد</a></td>
+                            </tr>
+                        }
+                        @if (Model.VisibleContracts.Count == 0)
+                        {
+                            <tr><td class="rc-td text-center text-slate-500" colspan="9">لا توجد عقود مطابقة للمعايير.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="rc-controls rc-card space-y-3">
+            @if (isContractDetail)
+            {
+                <form method="get" action="@root" class="flex items-end flex-wrap gap-3">
+                    <input type="hidden" name="tab" value="contract" />
+                    <div class="flex-1 min-w-[260px]">
+                        <label class="rc-label" for="contractId">اختر العقد</label>
+                        <select id="contractId" class="rc-input" name="contractId" required>
+                            <option value="">اختر العقد...</option>
+                            @foreach (var c in Model.Contracts)
+                            {
+                                <option value="@c.ContractID" selected="@(Model.ContractId == c.ContractID)">@c.Name @(!string.IsNullOrEmpty(c.Number) ? "— " + c.Number : "") (@c.StartDate.ToString("yyyy/MM/dd"))</option>
+                            }
+                        </select>
+                    </div>
+                    <button class="rc-btn" type="submit">عرض تقرير العقد</button>
+                </form>
+            }
+            else
+            {
+                <form method="get" action="@root" class="space-y-3">
+                    <input type="hidden" name="tab" value="period" />
+                    <div class="flex flex-wrap gap-4 text-sm font-bold">
+                        <label><input type="radio" name="period" value="year" checked="@(Model.Period == "year")" onchange="rcPeriodMode()" /> سنة واحدة</label>
+                        <label><input type="radio" name="period" value="years" checked="@(Model.Period == "years")" onchange="rcPeriodMode()" /> من سنة إلى سنة</label>
+                        <label><input type="radio" name="period" value="dates" checked="@(Model.Period == "dates")" onchange="rcPeriodMode()" /> من تاريخ إلى تاريخ</label>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                        <div class="rc-period-year">
+                            <label class="rc-label">السنة</label>
+                            <select class="rc-input" name="year">
+                                @foreach (var y in Model.YearOptions)
+                                {
+                                    <option value="@y" selected="@((Model.Year ?? DateTime.Today.Year) == y)">@y</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="rc-period-years">
+                            <label class="rc-label">من سنة</label>
+                            <select class="rc-input" name="yearFrom">
+                                <option value="">اختر السنة</option>@foreach (var y in Model.YearOptions){
+                                <option value="@y" selected="@(Model.YearFrom == y)">@y</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="rc-period-years">
+                        <label class="rc-label">إلى سنة</label>
+                        <select class="rc-input" name="yearTo">
+                            <option value="">اختر السنة</option>@foreach (var y in Model.YearOptions){
+                            <option value="@y" selected="@(Model.YearTo == y)">@y</option>
+                        }
+                    </select>
+                </div>
+                <div class="rc-period-dates"><label class="rc-label">من تاريخ</label><input class="rc-input rc-date" name="fromDate" type="text" placeholder="اختر تاريخ البداية" autocomplete="off" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" /></div>
+                <div class="rc-period-dates"><label class="rc-label">إلى تاريخ</label><input class="rc-input rc-date" name="toDate" type="text" placeholder="اختر تاريخ النهاية" autocomplete="off" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" /></div>
+                <button type="submit" class="rc-btn">عرض التقرير</button>
+            </div>
+        </form>
+    }
+</section>
+<div id="rc-live">
+    @if (hasSummary && string.IsNullOrEmpty(Model.Error))
+    {
+        <div class="space-y-4">
+            <section class="rc-card flex flex-wrap gap-3 justify-between items-center" id="rc-title">
+                <div>
+                    <h2 class="text-xl font-black">@(isContractDetail ? "تقرير العقد: " + Model.SelectedContract!.Name : "تقرير الفترة المحددة")</h2>
+                    <p class="text-sm text-slate-500 mt-1">@(isContractDetail ? Model.SelectedContract!.StartDate.ToString("yyyy/MM/dd") + " — " + (Model.SelectedContract.EndDate?.ToString("yyyy/MM/dd") ?? "مفتوح") : Model.PeriodStart!.Value.ToString("yyyy/MM/dd") + " — " + Model.PeriodEnd!.Value.ToString("yyyy/MM/dd"))</p>
+                </div>
+                <div class="rc-no-print flex flex-wrap gap-2">
+                    <button class="rc-btn rc-light" type="button" onclick="window.print()">طباعة التقرير</button>
+                    <a class="rc-btn rc-excel" href="@(root + "/Export?" + scopeQuery + "&detail=" + Model.Detail + detailIdsQuery)">تصدير Excel</a>
+                </div>
+            </section>
+            <section class="rc-card rc-no-print flex flex-wrap gap-3 items-center" id="rc-detail-controls">
+                <span class="font-black">مستوى التفاصيل:</span>
+                <a data-rc-live-link class="rc-btn @(Model.Detail == "summary" ? "" : "rc-light")" href="@(root + "?" + scopeQuery + "&detail=summary")">ملخص الجهات</a>
+                <a data-rc-live-link class="rc-btn @(Model.Detail == "departments" ? "" : "rc-light")" href="@(root + "?" + scopeQuery + "&detail=departments" + detailIdsQuery)">تفاصيل كل جهة</a>
+                @if (Model.Detail == "departments")
+                {
+                    <form id="rc-dept-form" data-rc-dept-form method="get" action="@root" class="flex-1 min-w-[260px]">
+                        <input type="hidden" name="tab" value="@Model.Tab" /><input type="hidden" name="contractId" value="@Model.ContractId" />
+                        <input type="hidden" name="detail" value="departments" /><input type="hidden" name="period" value="@Model.Period" />
+                        <input type="hidden" name="year" value="@Model.Year" /><input type="hidden" name="yearFrom" value="@Model.YearFrom" /><input type="hidden" name="yearTo" value="@Model.YearTo" />
+                        <input type="hidden" name="fromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" /><input type="hidden" name="toDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" />
+                        <details class="rc-dept-picker" id="rc-dept-picker">
+                            <summary>اختر الجهات <span id="rc-dept-count" class="text-slate-500 text-xs">@(Model.DepartmentIds.Count == 0 ? "الكل" : Model.DepartmentIds.Contains(-1) ? "لا توجد جهة محددة" : Model.DepartmentIds.Count.ToString() + " محددة")</span> ▾</summary>
+                            <div class="rc-dept-panel">
+                                <div class="flex flex-wrap items-center gap-2 mb-3">
+                                    <input id="rc-dept-search" class="rc-input flex-1 min-w-[180px]" type="search" placeholder="بحث سريع في أسماء الجهات والإدارات..." oninput="rcSearchDepartments(this.value)" aria-label="البحث عن جهة" />
+                                    <button type="button" class="rc-btn rc-light" onclick="rcSelectDepartments(true)">تحديد كافة الجهات</button>
+                                    <button type="button" class="rc-btn rc-light" onclick="rcSelectDepartments(false)">إلغاء التحديد بالكامل</button>
+                                </div>
+                                <div class="rc-dept-list">
+                                    <div class="rc-dept-group">
+                                        <button type="button" class="rc-dept-group-title" onclick="rcSelectDepartmentGroup(1,true)">إدارات الشركة والأفرع — تحديد الكل</button>
+                                        @foreach (var d in Model.Departments.Where(d => d.ID <= 24))
+                                        {
+                                            <label data-rc-dept-name="@d.Name @d.ID"><input type="checkbox" name="departmentIds" value="@d.ID" checked="@(Model.DepartmentIds.Contains(d.ID))" onchange="rcDepartmentChanged()" /><span>@d.Name</span><small>#@d.ID</small></label>
+                                        }
+                                    </div>
+                                    <div class="rc-dept-group">
+                                        <button type="button" class="rc-dept-group-title" onclick="rcSelectDepartmentGroup(2,true)">القطاعات والوحدات التابعة — تحديد الكل</button>
+                                        @foreach (var d in Model.Departments.Where(d => d.ID > 24))
+                                        {
+                                            <label data-rc-dept-name="@d.Name @d.ID"><input type="checkbox" name="departmentIds" value="@d.ID" checked="@(Model.DepartmentIds.Contains(d.ID))" onchange="rcDepartmentChanged()" /><span>@d.Name</span><small>#@d.ID</small></label>
+                                        }
+                                    </div>
+                                </div>
+                                <input id="rc-empty-selection" type="hidden" name="departmentIds" value="-1" disabled="@(Model.DepartmentIds.Count == 0 || !Model.DepartmentIds.Contains(-1))" />
+                            </div>
+                        </details>
+                    </form>
+                }
+                <span id="rc-live-status" class="text-xs text-slate-500" aria-live="polite"></span>
+            </section>
+            <section id="reports-center-results" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 @(isContractDetail ? "lg:grid-cols-4" : "lg:grid-cols-2") gap-3 rc-overview-grid">
+                    @if (isContractDetail)
+                    {
+                        <div class="rc-card"><div class="text-sm text-slate-500">الرصيد الافتتاحي</div><div class="rc-metric">@(Model.PaperTotals.Sum(p => p.Opening).ToString("N0"))</div><div class="text-sm text-slate-500">رزمة</div></div>
+                    }
+                    <div class="rc-card"><div class="text-sm text-slate-500">الوارد @(isContractDetail ? "خلال العقد" : "خلال الفترة")</div><div class="rc-metric">@(Model.PaperTotals.Sum(p => p.Received).ToString("N0"))</div><div class="text-sm text-slate-500">رزمة</div></div>
+                    <div class="rc-card"><div class="text-sm text-slate-500">المصروف @(isContractDetail ? "خلال العقد" : "خلال الفترة")</div><div class="rc-metric">@(Model.PaperTotals.Sum(p => p.Issued).ToString("N0"))</div><div class="text-sm text-slate-500">رزمة</div></div>
+                    @if (isContractDetail)
+                    {
+                        <div class="rc-card"><div class="text-sm text-slate-500">الرصيد الختامي / الحالي للعقد</div><div class="rc-metric">@(Model.PaperTotals.Sum(p => p.Balance ?? 0).ToString("N0"))</div><div class="text-sm text-slate-500">رزمة</div></div>
+                    }
+                </div>
+                <div class="rc-card space-y-3">
+                    <h3 class="font-black text-lg">@(isContractDetail ? "حركة المخزون حسب نوع الورق" : "الوارد والمصروف حسب نوع الورق")</h3>
+                    <div class="rc-table-wrapper overflow-x-auto">
+                        <table class="w-full min-w-[520px] text-right">
+                            <thead>
+                                <tr>
+                                    <th class="rc-th">النوع</th>@if (isContractDetail){
+                                    <th class="rc-th">افتتاحي</th>
+                                }
+                                <th class="rc-th">الوارد</th>
+                                <th class="rc-th">المصروف</th>@if (isContractDetail){
+                                <th class="rc-th">الرصيد</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in Model.PaperTotals)
+                        {
+                            <tr>
+                                <td class="rc-td font-bold">@p.Name</td>@if (isContractDetail){
+                                <td class="rc-td">@p.Opening.ToString("N0")</td>
+                            }
+                            <td class="rc-td">@p.Received.ToString("N0")</td>
+                            <td class="rc-td">@p.Issued.ToString("N0")</td>@if (isContractDetail){
+                            <td class="rc-td">@((p.Balance ?? 0).ToString("N0"))</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (!isContractDetail)
+    {
+    }
+</div>
+<div class="rc-card space-y-3">
+    <h3 class="font-black text-lg">المصروف حسب مجموعات الجهات</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="rounded-xl border border-sky-200 bg-sky-50 p-4"><div class="text-sm font-bold">إدارات وأفرع الشركة</div><div class="rc-metric">@Model.Group1Issued.ToString("N0") <span class="text-sm">رزمة</span></div></div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div class="text-sm font-bold">القطاعات والوحدات التابعة</div><div class="rc-metric">@Model.Group2Issued.ToString("N0") <span class="text-sm">رزمة</span></div></div>
+    </div>
+    @if (Model.Detail == "departments" && Model.DepartmentIds.Count > 0)
+    {
+        <p class="text-xs text-slate-500">ملخص المجموعتين لجميع الجهات؛ تم تطبيق اختيار الجهات على جدول التفاصيل فقط.</p>
+    }
+</div>
+@if (Model.Detail == "departments")
+{
+    <div class="rc-card space-y-3">
+        <h3 class="font-black text-lg">تفاصيل المصروف حسب الجهة</h3>
+        <div class="rc-table-wrapper overflow-x-auto">
+            <table class="w-full min-w-[620px] text-right">
+                <thead>
+                    <tr>
+                        <th class="rc-th">كود</th>
+                        <th class="rc-th">الجهة</th>
+                        <th class="rc-th">المجموعة</th>@foreach (var paper in visibleIssueTypes){
+                        <th class="rc-th">@paper</th>
+                    }
+                    @if (showTotal)
+                    {
+                        <th class="rc-th">الإجمالي</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var d in visibleDepts)
+                {
+                    <tr>
+                        <td class="rc-td">@d.ID</td>
+                        <td class="rc-td font-bold">@d.Name</td>
+                        <td class="rc-td">@d.GroupName</td>@foreach (var paper in visibleIssueTypes){
+                        <td class="rc-td">@d.Quantity(paper).ToString("N0")</td>
+                    }
+                    @if (showTotal)
+                    {
+                        <td class="rc-td font-bold">@d.Total.ToString("N0")</td>
+                    }
+                </tr>
+            }
+            @if (visibleDepts.Count == 0)
+            {
+                <tr><td class="rc-td text-slate-500 text-center" colspan="@(visibleIssueTypes.Count + 3 + (showTotal ? 1 : 0))">لا توجد حركات صرف مطابقة.</td></tr>
+            }
+        </tbody>
+        @if (visibleDepts.Count > 0)
+        {
+            <tfoot>
+                <tr class="bg-slate-50 font-bold">
+                    <td class="rc-td" colspan="3">إجمالي الجهات المحددة</td>@foreach (var paper in visibleIssueTypes){
+                    <td class="rc-td font-bold">@(visibleDepts.Sum(d => d.Quantity(paper)).ToString("N0"))</td>
+                }
+                @if (showTotal)
+                {
+                    <td class="rc-td font-black">@(visibleDepts.Sum(d => d.Total).ToString("N0"))</td>
+                }
+            </tr>
+        </tfoot>
+    }
+</table>
+</div>
+</div>
+                    }
+</section>
+</div>
+        }
+        else if (isContractDetail && !Model.ContractId.HasValue)
+{
+    <div class="rc-card text-slate-500 text-sm">اختر العقد لعرض تقريره.</div>
+}
+</div>
+    }
+</div>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
+    <script>
+        function rcPeriodMode(){
+            const mode=document.querySelector('input[name="period"]:checked')?.value || 'year';
+            document.querySelectorAll('.rc-period-year,.rc-period-years,.rc-period-dates').forEach(field=>{
+                const active=field.classList.contains('rc-period-'+mode);
+                field.style.display=active?'':'none';
+                field.querySelectorAll('input,select').forEach(input=>input.disabled=!active);
+            });
+        }
+        rcPeriodMode();
+        if(typeof flatpickr==='function'){
+            document.querySelectorAll('.rc-date').forEach(input=>{
+                flatpickr(input,{locale:'ar',dateFormat:'Y-m-d',disableMobile:true,allowInput:false});
+            });
+        } else {
+            // Native fallback if the date-picker CDN is unavailable.
+            document.querySelectorAll('.rc-date').forEach(input=>input.type='date');
+        }
+        function rcEmbedOfficial(frame){
+            // Embed the ORIGINAL company report without changing Reports.cshtml,
+            // its filters, its signature block or its print/Excel functions.
+            try {
+                const doc=frame.contentDocument;
+                if(!doc) return;
+                const css=doc.createElement('style');
+                css.textContent='@@media screen {html,body{height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important}body{display:block!important;margin:0!important}body>header,body>footer{display:none!important}main#paperPageContent{height:auto!important;max-width:none!important;min-height:0!important;margin:0!important;padding:6px!important;overflow:visible!important}/* Inside Reports Center only: keep original report functions and hide redundant action/status widgets. */#periodForm>div:first-child>div:last-child>span,#periodForm>div:first-child>div:last-child>button{display:none!important}#periodForm>div:first-child>div:last-child{display:flex!important;justify-content:center;align-items:flex-end}#periodForm>div:first-child{grid-template-columns:repeat(3,minmax(0,1fr)) 54px!important}}@@media screen and (max-width:1023px){#periodForm>div:first-child{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@@media screen and (max-width:640px){#periodForm>div:first-child{grid-template-columns:1fr!important}}';
+                doc.head.appendChild(css);
+                const measure=()=>{
+                    if(!frame.isConnected) return;
+                    const body=doc.body,html=doc.documentElement;
+                    if(!body||!html)return;
+                    const content=doc.querySelector('main#paperPageContent')||body;
+                    const height=Math.max(content.scrollHeight,body.scrollHeight,html.scrollHeight,200)+8;
+                    if(Math.abs(frame.offsetHeight-height)>3)frame.style.height=height+'px';
+                };
+                frame.style.overflow='hidden';
+                // Nested scrollbars are disabled; the parent page is the sole scroll surface.
+                const observer=new MutationObserver(measure);
+                observer.observe(doc.body,{childList:true,subtree:true,characterData:true});
+                if(typeof ResizeObserver!=='undefined')new ResizeObserver(measure).observe(doc.body);
+                doc.addEventListener('change',()=>requestAnimationFrame(measure),true);
+                doc.addEventListener('click',()=>requestAnimationFrame(measure),true);
+                window.addEventListener('resize',measure);
+                measure();
+                setTimeout(measure,150);
+                setTimeout(measure,500);
+                setTimeout(measure,1400);
+            }catch(e){console.warn('Original report could not be auto-sized.',e);}
+        }
+        function rcSearchDepartments(query){
+            const text=(query||'').trim().toLocaleLowerCase();
+            document.querySelectorAll('.rc-dept-list [data-rc-dept-name]').forEach(el=>{
+                el.style.display=el.dataset.rcDeptName.toLocaleLowerCase().includes(text)?'':'none';
+            });
+        }
+        function rcSyncDepartmentCount(){
+            const form=document.getElementById('rc-dept-form');if(!form)return;
+            const count=form.querySelectorAll('input[name="departmentIds"]:checked').length;
+            const empty=form.querySelector('#rc-empty-selection');
+            if(empty)empty.disabled=count>0;
+            const badge=document.getElementById('rc-dept-count');
+            if(badge)badge.textContent=count?count+' محددة':empty&&!empty.disabled?'لا توجد جهة محددة':'الكل';
+        }
+        let rcDepartmentTimer=null,rcFetchController=null;
+        function rcDepartmentChanged(){
+            rcSyncDepartmentCount();
+            clearTimeout(rcDepartmentTimer);
+            rcDepartmentTimer=setTimeout(()=>{
+                const form=document.getElementById('rc-dept-form');if(!form)return;
+                const url=new URL(form.action,window.location.origin);
+                url.search=new URLSearchParams(new FormData(form)).toString();
+                rcFetch(url.toString(),false);
+            },180);
+        }
+        function rcSelectDepartments(checked){
+            const form=document.getElementById('rc-dept-form');if(!form)return;
+            form.querySelectorAll('input[type="checkbox"][name="departmentIds"]').forEach(el=>el.checked=checked);
+            rcDepartmentChanged();
+        }
+        function rcSelectDepartmentGroup(group,checked){
+            const form=document.getElementById('rc-dept-form');if(!form)return;
+            form.querySelectorAll('input[type="checkbox"][name="departmentIds"]').forEach(el=>el.checked=false);
+            form.querySelectorAll('.rc-dept-group:nth-child('+group+') input[type="checkbox"]').forEach(el=>el.checked=checked);
+            rcDepartmentChanged();
+        }
+        async function rcFetch(url,replaceAll){
+            if(rcFetchController) rcFetchController.abort();
+            const controller=new AbortController();rcFetchController=controller;
+            const target=document.getElementById(replaceAll?'rc-live':'reports-center-results');
+            const status=document.getElementById('rc-live-status');
+            if(status) status.textContent='جارِ تحديث التقرير...';
+            if(target) target.classList.add('rc-live-busy');
+            const savedScroll=window.scrollY;
+            try{
+                const response=await fetch(url,{headers:{'X-ReportsCenter-Partial':'1'},credentials:'same-origin',signal:controller.signal});
+                if(!response.ok) throw new Error('HTTP '+response.status);
+                const html=await response.text();
+                const parsed=new DOMParser().parseFromString(html,'text/html');
+                const next=parsed.getElementById(replaceAll?'rc-live':'reports-center-results');
+                const liveTarget=document.getElementById(replaceAll?'rc-live':'reports-center-results');
+                if(!next||!liveTarget) throw new Error('Report content missing');
+                const pickerWasOpen=!!document.querySelector('#rc-dept-picker[open]');
+                liveTarget.replaceWith(next);
+                if(pickerWasOpen){const picker=document.getElementById('rc-dept-picker');if(picker)picker.open=true;}
+                // Keep the Excel download in sync with the selected departments too.
+                if(!replaceAll){
+                    const nextExcel=parsed.querySelector('#rc-title a.rc-excel');
+                    const currentExcel=document.querySelector('#rc-title a.rc-excel');
+                    if(nextExcel&&currentExcel) currentExcel.href=nextExcel.href;
+                }
+                history.replaceState({},'',url);
+                window.scrollTo({top:savedScroll,behavior:'auto'});
+                if(replaceAll) rcSyncDepartmentCount();
+            }catch(error){
+                if(error.name!=='AbortError'){
+                    console.error('Instant report update failed:',error);
+                    const label=document.getElementById('rc-live-status');
+                    if(label)label.textContent='تعذر التحديث الفوري. يرجى إعادة المحاولة.';
+                }
+            }finally{
+                if(rcFetchController===controller){rcFetchController=null;
+                    document.querySelectorAll('#rc-live.rc-live-busy,#reports-center-results.rc-live-busy').forEach(el=>el.classList.remove('rc-live-busy'));
+                    const label=document.getElementById('rc-live-status');if(label && label.textContent==='جارِ تحديث التقرير...')label.textContent='';
+                        }
+                    }
+                }
+        document.addEventListener('click',e=>{
+            const link=e.target.closest('a[data-rc-live-link]');if(!link)return;
+            e.preventDefault();clearTimeout(rcDepartmentTimer);rcFetch(link.href,true);
+                });
+        document.addEventListener('submit',e=>{
+            if(e.target.id!=='rc-dept-form')return;
+            e.preventDefault();clearTimeout(rcDepartmentTimer);rcDepartmentChanged();
+                });
+    </script>
+}

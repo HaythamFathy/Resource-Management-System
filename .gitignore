@@ -1,0 +1,27 @@
+## Visual Studio
+.vs/
+[Bb]in/
+[Oo]bj/
+[Aa]pp_Data/
+[Tt]est[Rr]esults/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.dbmdl
+
+# Office temporary files
+~$*.docx
+~$*.xlsx
+~$*.pptx
+~$*.doc
+~$*.xls
+
+# Windows
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# Logs & databases
+*.log
+*.ldf

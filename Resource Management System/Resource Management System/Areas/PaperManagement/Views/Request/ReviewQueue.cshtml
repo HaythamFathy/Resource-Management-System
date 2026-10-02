@@ -1,0 +1,308 @@
+@model Resource_Management_System.Models.RequestQueueViewModel
+@{
+    ViewData["Title"] = "All requests";
+    var filter = ViewBag.Filter as Resource_Management_System.Models.RequestFilterViewModel ?? new Resource_Management_System.Models.RequestFilterViewModel();
+}
+
+<link rel="stylesheet" href="~/css/live-queue.css" asp-append-version="true" />
+
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-extrabold text-on-surface mb-1">كل الطلبات</h2>
+        </div>
+        <span data-request-count class="bg-primary/10 text-primary text-xs font-bold px-3 py-1.5 rounded-full">@Model.Requests.Count طلب</span>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">@TempData["ErrorMessage"]</div>
+    }
+
+    @await Html.PartialAsync("_ReviewQueueFilterPartial", filter)
+
+    <div id="liveQueueContent">
+        <div class="bg-surface-white rounded-xl shadow-sm border border-border-light overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-right text-sm">
+                    <thead class="bg-slate-800 border-b border-slate-900 text-white font-bold">
+                        <tr>
+                            <th class="py-4 px-4">رقم الطلب</th>
+                            <th class="py-4 px-4">القسم</th>
+                            <th class="py-4 px-4">نوع الورق</th>
+                            <th class="py-4 px-4">الكمية</th>
+                            <th class="py-4 px-4">الحالة</th>
+                            <th class="py-4 px-4">التاريخ</th>
+                            <th class="py-4 px-4"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="requestTableBody" class="divide-y divide-slate-200 font-semibold [&>tr:nth-child(odd)]:bg-white [&>tr:nth-child(even)]:bg-[#34435E]/5 [&>tr:hover]:bg-cyan-50">
+                        @foreach (var item in Model.Requests)
+                        {
+                            var isActionable = Model.ActionableRequestIds.Contains(item.RequestID);
+                            var isReReview = item.Status == RequestStatus.PendingITReReview;
+                            var badgeType = isReReview ? "review" : "new";
+
+                            <tr data-filter-row data-request-id="@item.RequestID" data-status="@item.Status"
+                                data-is-actionable="@(isActionable ? "true" : "false")"
+                                data-badge-type="@badgeType"
+                                data-search="@($"{item.RequestID} {item.DepartmentName} {item.PaperTypeName} {item.Notes} {item.ITReviewNotes} {item.RejectionNote}".ToLower())"
+                                class="@(isActionable ? "new-request-row" : "")">
+                                <td class="py-4 px-4 text-primary">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <span>#@item.RequestID</span>
+                                        @if (isActionable)
+                                        {
+                                            <span class="new-badge @(isReReview ? "badge-rereview" : "badge-new")">
+                                                @(isReReview ? "إعادة مراجعة" : "جديد")
+                                            </span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="py-4 px-4">@item.DepartmentName</td>
+                                <td class="py-4 px-4">@item.PaperTypeName</td>
+                                <td class="py-4 px-4">@item.RequestedQuantity @QuantityHelper.RezmaUnit(item.RequestedQuantity)</td>
+                                <td class="py-4 px-4 text-xs">
+                                    <div class="flex flex-col gap-1">
+                                        @await Html.PartialAsync("_StatusBadge", item.Status)@if (item.IsException) {
+                                        <span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full w-fit"><i class="bi bi-exclamation-triangle-fill"></i>استثناء</span>
+                                    }
+                                </div>
+                            </td>
+                            <td class="py-4 px-4 text-xs text-gray-500">@item.RequestDate.ToEgyptTime().ToString("yyyy/MM/dd HH:mm")</td>
+                            <td class="py-4 px-4">
+                                <button type="button" onclick="openRequest(@item.RequestID)" class="px-3 py-1.5 rounded-lg bg-primary text-white text-xs">التفاصيل</button>
+                            </td>
+                        </tr>
+                    }
+
+                    @if (!Model.Requests.Any())
+                    {
+                        <tr><td colspan="7" class="py-10 text-center text-gray-500">لا توجد طلبات مطابقة.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.TotalPages > 1)
+        {
+            <div class="flex items-center justify-center gap-2 py-4 border-t">
+                @for (int p = 1; p <= Model.TotalPages; p++)
+                {
+                    <button type="submit" form="queueFilterForm" name="page" value="@p"
+                            class="@(p == Model.CurrentPage ? "bg-primary text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200") px-3 py-1.5 rounded-lg text-sm font-bold">
+                        @p
+                    </button>
+                }
+            </div>
+        }
+    </div>
+</div>
+</div>
+
+<div id="liveQueueModals">
+    @foreach (var item in Model.Requests)
+    {
+        @await Html.PartialAsync("_RequestDetailModal", item, new ViewDataDictionary(ViewData) { ["IsActionable"] = Model.ActionableRequestIds.Contains(item.RequestID) })
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/live-queue.js" asp-append-version="true"></script>
+    <script>
+
+        /*
+         * =========================================================
+         * IT REVIEW QUEUE
+         * =========================================================
+         *
+         * First submissions display "جديد"; requests returned by an
+         * approver (status PendingITReReview) keep the normal status label and display a separate "إعادة مراجعة" attention badge.
+         *
+         * Badge state is driven by the server-rendered data-is-actionable
+         * / data-badge-type attributes on each row (same approach as the
+         * Approver queue), refreshed every time LiveQueue re-syncs the
+         * table body. The arrival badge disappears once Details is opened
+         * and stays hidden until the request becomes actionable again.
+         */
+
+        const SEEN_KEY = 'itQueueSeen_v8';
+
+        function readJson(key, fallback) {
+            try {
+                const value = localStorage.getItem(key);
+                return value ? JSON.parse(value) : fallback;
+            } catch (e) {
+                return fallback;
+            }
+        }
+
+        function getSeenSet() {
+            const arr = readJson(SEEN_KEY, []);
+            return new Set(Array.isArray(arr) ? arr.map(String) : []);
+        }
+
+        function saveSeenSet(seenSet) {
+            localStorage.setItem(SEEN_KEY, JSON.stringify([...seenSet]));
+        }
+
+        function addNewBadge(id, badgeType) {
+            const row = document.querySelector('#requestTableBody tr[data-request-id="' + Number(id) + '"]');
+            if (!row) return;
+
+            row.classList.add('new-request-row');
+            const cell = row.querySelector('td');
+            if (!cell) return;
+
+            const isReview = badgeType === 'review';
+            const text = isReview ? 'إعادة مراجعة' : 'جديد';
+            const colorClass = isReview ? 'badge-rereview' : 'badge-new';
+
+            let badge = cell.querySelector('.new-badge');
+            if (!badge) {
+                const container = cell.querySelector('div') || cell;
+                badge = document.createElement('span');
+                badge.className = 'new-badge ' + colorClass;
+                container.appendChild(document.createTextNode(' '));
+                container.appendChild(badge);
+            }
+
+            badge.classList.remove('badge-new', 'badge-rereview', 'bg-emerald-500', 'bg-amber-500');
+            badge.classList.add(colorClass);
+            badge.textContent = text;
+        }
+
+        function removeNewBadge(id) {
+            const row = document.querySelector('#requestTableBody tr[data-request-id="' + Number(id) + '"]');
+            if (!row) return;
+
+            row.classList.remove('new-request-row');
+            const badge = row.querySelector('.new-badge');
+            if (badge) {
+                badge.remove();
+            }
+        }
+
+        function applySavedOrder() {
+            const tbody = document.getElementById('requestTableBody');
+            if (!tbody) return;
+
+            const seenSet = getSeenSet();
+            const rows = Array.from(tbody.querySelectorAll('tr[data-request-id]'));
+
+            rows.forEach(function(row) {
+                const id = Number(row.dataset.requestId);
+                const isActionable = row.dataset.isActionable === 'true';
+                const badgeType = row.dataset.badgeType || 'new';
+
+                // Seen state is keyed by id+badgeType, not just id, so a
+                // request that was already opened once (e.g. as "new") but
+                // has since come back around with a different badge type
+                // (e.g. "review" after being sent back) is treated as unseen
+                // again and the badge reappears, instead of staying hidden
+                // forever because the bare id was already marked seen.
+                if (seenSet.has(id + ':' + badgeType)) {
+                    removeNewBadge(id);
+                } else if (isActionable) {
+                    addNewBadge(id, badgeType);
+                }
+            });
+        }
+
+        function clearNewMark(id) {
+            const numericId = Number(id);
+            const row = document.querySelector('#requestTableBody tr[data-request-id="' + numericId + '"]');
+            const badgeType = row ? (row.dataset.badgeType || 'new') : 'new';
+
+            const seenSet = getSeenSet();
+            seenSet.add(numericId + ':' + badgeType);
+            saveSeenSet(seenSet);
+            removeNewBadge(numericId);
+        }
+
+        function openRequest(id) {
+            clearNewMark(id);
+
+            const modal = document.getElementById('request-' + id);
+            if (!modal) return;
+
+            modal.classList.replace('hidden', 'flex');
+            if (window.LiveQueue && LiveQueue.loadRequestDetails) {
+                void LiveQueue.loadRequestDetails(id);
+            }
+
+            const box = document.getElementById('timeline-' + id);
+            if (box && !box.dataset.loaded) {
+                const controller = new AbortController();
+                const timeout = setTimeout(function() { controller.abort(); }, 10000);
+
+                fetch('/PaperManagement/Request/ActivityLog?requestId=' + encodeURIComponent(id), {
+                    signal: controller.signal
+                })
+                    .then(function(response) {
+                        clearTimeout(timeout);
+                        if (!response.ok) throw new Error('HTTP ' + response.status);
+                        return response.json();
+                    })
+                    .then(function(events) {
+                        box.dataset.loaded = '1';
+                        if (!events.length) {
+                            box.innerHTML = '<p class="text-gray-400">لا يوجد سجل بعد.</p>';
+                            return;
+                        }
+                        box.innerHTML = '<ol class="space-y-3">' + events.map(function(e) {
+                            const c = eventColorClasses(e.label);
+                            return (
+                                '<li class="border-r-4 ' + c.border + ' ' + c.bg + ' rounded-lg p-3">' +
+                                '<div class="flex justify-between items-start gap-3">' +
+                                '<span class="font-bold text-sm">' + e.label + '</span>' +
+                                '<span class="text-xs text-gray-400 whitespace-nowrap">' + e.createdDate + '</span>' +
+                                '</div>' +
+                                (e.quantity !== null && e.quantity !== undefined ? '<div class="text-sm font-bold text-primary mt-2">الكمية: ' + e.quantity + ' ' + rezmaUnit(e.quantity) + '</div>' : '') +
+                                (e.note ? '<div class="text-sm mt-2 bg-white/80 rounded-lg px-3 py-2 border border-black/5 break-all break-words">' + e.note + '</div>' : '') +
+                                '</li>'
+                            );
+                        }).join('') + '</ol>';
+                    })
+                    .catch(function(error) {
+                        box.innerHTML = '<p class="text-red-500">' + (error?.name === 'AbortError' ? 'انتهت مهلة تحميل السجل - حاول مرة أخرى.' : 'تعذر تحميل السجل.') + '</p>';
+                    });
+            }
+        }
+
+        function closeRequest(id) {
+            const modal = document.getElementById('request-' + id);
+            if (!modal) return;
+
+            modal.classList.replace('flex', 'hidden');
+        }
+
+        function eventColorClasses(label) {
+            if (label.indexOf('رفض') !== -1) {
+                return { border: 'border-red-500', bg: 'bg-red-50' };
+            }
+            if (label.indexOf('اعتماد') !== -1 || label.indexOf('موافقة') !== -1) {
+                return { border: 'border-emerald-500', bg: 'bg-emerald-50' };
+            }
+            if (label.indexOf('صرف') !== -1) {
+                return { border: 'border-teal-500', bg: 'bg-teal-50' };
+            }
+            return { border: 'border-primary', bg: 'bg-primary/5' };
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            applySavedOrder();
+
+            if (window.LiveQueue && LiveQueue.start) {
+                LiveQueue.start({
+                    eventsUrl: '@Url.Action("LiveQueueEvents", "Request", new { area = "PaperManagement", queue = "review" })',
+                    onSynced: applySavedOrder
+                });
+            }
+        });
+
+    </script>
+}

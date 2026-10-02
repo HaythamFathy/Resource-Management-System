@@ -1,0 +1,215 @@
+@model Resource_Management_System.Models.InventoryYearlyLedgerViewModel
+@{
+    ViewData["Title"] = "السجل السنوي للمخزون";
+    string Unit(long value) => value == 1 ? "رزمة" : "رزم";
+    string Number(long value) => value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+    var carryLabel = Model.IsCurrentYear ? "الرصيد الحالي حتى الآن" : $"المرحل إلى {Model.SelectedYear + 1}";
+}
+
+<div class="space-y-6">
+    <div class="bg-surface-white rounded-2xl border border-border-light shadow-sm overflow-hidden">
+        <div class="px-5 py-4 bg-[#34435E] text-white flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-2xl">calendar_month</span>
+                    <h2 class="text-xl sm:text-2xl font-black">السجل السنوي للمخزون</h2>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="/PaperManagement/Request/ReceiptLog" class="inline-flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 px-3 py-2 text-xs font-black transition-colors">
+                    <i class="bi bi-clock-history"></i>
+                    سجل الاستلام
+                </a>
+                <a href="/PaperManagement/Request/Inventory" class="inline-flex items-center gap-1.5 rounded-xl bg-white text-[#34435E] px-3 py-2 text-xs font-black hover:bg-white/90 transition-colors">
+                    <i class="bi bi-box-seam"></i>
+                    رجوع للمخزون
+                </a>
+            </div>
+        </div>
+
+        <div class="p-5 border-b border-border-light bg-neutral-50/70">
+            <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                <div class="w-full lg:max-w-xs">
+                    <label for="inventoryYearSelector" class="block text-xs font-black text-neutral-700 mb-1.5">اختر السنة</label>
+                    <select id="inventoryYearSelector"
+                            class="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2.5 text-sm font-black text-[#34435E] outline-none focus:border-primary focus:ring-2 focus:ring-primary/10">
+                        @foreach (var y in Model.AvailableYears)
+                        {
+                            if (y == Model.SelectedYear)
+                            {
+                                <option value="@y" selected>@y</option>
+                            }
+                            else
+                            {
+                                <option value="@y">@y</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <a href="@Url.Action("ExportInventoryYearlyLedgerToExcel", "Request", new { area = "PaperManagement", year = Model.SelectedYear })"
+                   class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-xs font-black transition-colors self-start lg:self-auto">
+                    <i class="bi bi-file-earmark-excel-fill"></i>
+                    تصدير Excel
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl border border-neutral-200 shadow-sm p-5 relative overflow-hidden">
+            <div class="absolute -left-6 -top-6 w-20 h-20 rounded-full bg-slate-100"></div>
+            <p class="text-xs font-black text-neutral-500 relative">رصيد أول @Model.SelectedYear</p>
+            <p class="text-3xl font-black text-[#34435E] mt-2 relative">@Number(Model.OpeningStock)</p>
+            <p class="text-[11px] font-bold text-neutral-400 mt-1 relative">@Unit(Model.OpeningStock) مرحّلة من السنة السابقة</p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-emerald-200 shadow-sm p-5 relative overflow-hidden">
+            <div class="absolute -left-6 -top-6 w-20 h-20 rounded-full bg-emerald-50"></div>
+            <p class="text-xs font-black text-emerald-700 relative">الوارد خلال @Model.SelectedYear</p>
+            <p class="text-3xl font-black text-emerald-700 mt-2 relative">@Number(Model.ReceivedDuringYear)</p>
+            <p class="text-[11px] font-bold text-neutral-400 mt-1 relative">@Unit(Model.ReceivedDuringYear) تمت إضافتها للمخزون</p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-blue-200 shadow-sm p-5 relative overflow-hidden">
+            <div class="absolute -left-6 -top-6 w-20 h-20 rounded-full bg-blue-50"></div>
+            <p class="text-xs font-black text-blue-700 relative">المصروف خلال @Model.SelectedYear</p>
+            <p class="text-3xl font-black text-blue-700 mt-2 relative">@Number(Model.IssuedDuringYear)</p>
+            <p class="text-[11px] font-bold text-neutral-400 mt-1 relative">@Unit(Model.IssuedDuringYear) خرجت للجهات</p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-violet-200 shadow-sm p-5 relative overflow-hidden">
+            <div class="absolute -left-6 -top-6 w-20 h-20 rounded-full bg-violet-50"></div>
+            <p class="text-xs font-black text-violet-700 relative">@carryLabel</p>
+            <p class="text-3xl font-black text-violet-700 mt-2 relative">@Number(Model.ClosingStock)</p>
+            <p class="text-[11px] font-bold text-neutral-400 mt-1 relative">@Unit(Model.ClosingStock) لا تُحذف عند إغلاق السنة</p>
+        </div>
+    </div>
+
+    <section class="bg-surface-white rounded-2xl border border-border-light shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-border-light flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+                <h3 class="font-black text-on-surface">تفاصيل حركة المخزون — @Model.SelectedYear</h3>
+            </div>
+            <span class="inline-flex items-center gap-1 rounded-full bg-neutral-100 text-neutral-600 px-3 py-1.5 text-[10px] font-black self-start sm:self-auto">
+                @Model.Rows.Count نوع ورق
+            </span>
+        </div>
+
+        @if (Model.Rows.Any())
+        {
+            <div class="overflow-x-auto">
+                <table class="w-full text-right text-sm min-w-[850px]">
+                    <thead class="bg-slate-800 text-white">
+                        <tr>
+                            <th class="px-4 py-3.5 font-black">نوع الورق</th>
+                            <th class="px-4 py-3.5 font-black text-center">رصيد أول السنة</th>
+                            <th class="px-4 py-3.5 font-black text-center">الوارد</th>
+                            <th class="px-4 py-3.5 font-black text-center">إجمالي المتاح</th>
+                            <th class="px-4 py-3.5 font-black text-center">المصروف</th>
+                            <th class="px-4 py-3.5 font-black text-center">@(Model.IsCurrentYear ? "الرصيد الحالي" : $"المرحل إلى {Model.SelectedYear + 1}")</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100">
+                        @foreach (var row in Model.Rows)
+                        {
+                            var available = row.AvailableDuringYear;
+                            var issuedPct = available > 0 ? Math.Min(100, (int)Math.Round(row.IssuedDuringYear * 100d / available)) : 0;
+                            <tr class="hover:bg-slate-50/80 transition-colors">
+                                <td class="px-4 py-4">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-black text-xs">@row.PaperTypeName</span>
+                                        <div>
+                                            <p class="font-black text-on-surface">ورق @row.PaperTypeName</p>
+                                            <p class="text-[10px] text-neutral-400">#@row.PaperTypeID</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4 text-center font-black text-slate-700">@Number(row.OpeningStock)</td>
+                                <td class="px-4 py-4 text-center font-black text-emerald-700">@Number(row.ReceivedDuringYear)</td>
+                                <td class="px-4 py-4 text-center font-black text-[#34435E]">@Number(row.AvailableDuringYear)</td>
+                                <td class="px-4 py-4 text-center">
+                                    <p class="font-black text-blue-700">@Number(row.IssuedDuringYear)</p>
+                                    <div class="w-20 mx-auto h-1.5 bg-neutral-100 rounded-full overflow-hidden mt-1.5" title="نسبة المصروف من المتاح: @issuedPct%">
+                                        <div class="h-full bg-blue-500 rounded-full" style="width:@issuedPct%"></div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4 text-center">
+                                    <span class="inline-flex items-center justify-center min-w-20 rounded-xl bg-violet-50 border border-violet-100 text-violet-700 px-3 py-2 font-black">@Number(row.ClosingStock)</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="bg-neutral-50 border-t-2 border-neutral-200 font-black">
+                        <tr>
+                            <td class="px-4 py-4 text-on-surface">الإجمالي</td>
+                            <td class="px-4 py-4 text-center">@Number(Model.OpeningStock)</td>
+                            <td class="px-4 py-4 text-center text-emerald-700">@Number(Model.ReceivedDuringYear)</td>
+                            <td class="px-4 py-4 text-center">@Number(Model.AvailableDuringYear)</td>
+                            <td class="px-4 py-4 text-center text-blue-700">@Number(Model.IssuedDuringYear)</td>
+                            <td class="px-4 py-4 text-center text-violet-700">@Number(Model.ClosingStock)</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="py-12 text-center text-neutral-500">
+                <span class="material-symbols-outlined text-4xl text-neutral-300">inventory_2</span>
+                <p class="text-sm font-bold mt-2">لا توجد حركة مخزون مسجلة لهذه السنة.</p>
+            </div>
+        }
+    </section>
+
+    @if (Model.YearSummaries.Any())
+    {
+        <section class="bg-surface-white rounded-2xl border border-border-light shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-border-light">
+                <h3 class="font-black text-on-surface">ملخص السنوات</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-right text-xs min-w-[700px]">
+                    <thead class="bg-neutral-50 text-neutral-600 font-black border-b border-neutral-200">
+                        <tr>
+                            <th class="px-4 py-3">السنة</th>
+                            <th class="px-4 py-3 text-center">رصيد البداية</th>
+                            <th class="px-4 py-3 text-center">الوارد</th>
+                            <th class="px-4 py-3 text-center">المصروف</th>
+                            <th class="px-4 py-3 text-center">رصيد النهاية / الترحيل</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100">
+                        @foreach (var summary in Model.YearSummaries)
+                        {
+                            var active = summary.Year == Model.SelectedYear;
+                            <tr class="@(active ? "bg-primary/[0.04]" : "hover:bg-neutral-50")">
+                                <td class="px-4 py-3.5">
+                                    <a href="@Url.Action("InventoryYearlyLedger", "Request", new { area = "PaperManagement", year = summary.Year })" class="font-black @(active ? "text-primary" : "text-on-surface hover:text-primary")">@summary.Year</a>
+                                </td>
+                                <td class="px-4 py-3.5 text-center font-bold">@Number(summary.OpeningStock)</td>
+                                <td class="px-4 py-3.5 text-center font-black text-emerald-700">@Number(summary.ReceivedDuringYear)</td>
+                                <td class="px-4 py-3.5 text-center font-black text-blue-700">@Number(summary.IssuedDuringYear)</td>
+                                <td class="px-4 py-3.5 text-center font-black text-violet-700">@Number(summary.ClosingStock)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</div>
+
+
+<script>
+    (function () {
+        var selector = document.getElementById('inventoryYearSelector');
+        if (!selector) return;
+
+        selector.addEventListener('change', function () {
+            var year = selector.value;
+            if (!year) return;
+            window.location.href = '@Url.Action("InventoryYearlyLedger", "Request", new { area = "PaperManagement" })' + '?year=' + encodeURIComponent(year);
+        });
+    })();
+</script>

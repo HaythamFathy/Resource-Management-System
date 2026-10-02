@@ -1,0 +1,380 @@
+@model Resource_Management_System.Models.NewRequestViewModel
+@{
+    ViewData["Title"] = "تقديم طلب استثناء جديد";
+    var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+}
+
+<div class="max-w-2xl mx-auto">
+    <!-- Header -->
+    <div class="mb-3">
+        <h2 class="text-xl font-extrabold text-on-surface leading-tight">تقديم طلب استثناء جديد</h2>
+    </div>
+
+    <!-- Main Request Form Card (Same UI as Create.cshtml) -->
+    <div class="bg-surface-white rounded-xl p-6 shadow-sm border border-border-light">
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="mb-4 p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold flex items-center gap-2">
+                <i class="bi bi-check-circle-fill text-lg"></i>
+                <span>@TempData["SuccessMessage"]</span>
+            </div>
+        }
+
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="mb-4 p-3.5 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm font-semibold">
+                <div asp-validation-summary="All" class="space-y-1"></div>
+            </div>
+        }
+
+        <form asp-area="PaperManagement" asp-controller="Request" asp-action="ExceptionRequest" method="post" class="space-y-5" novalidate>
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="SubmissionKey" />
+
+            @if (userRole != Roles.Department)
+            {
+                <!-- Department Selection for Admin/IT -->
+                <div class="space-y-2">
+                    <label asp-for="DepartmentID" class="block font-bold text-sm text-on-surface">القسم المستفيد <span class="text-red-600" aria-hidden="true">*</span></label>
+                    <div class="relative">
+                        <select asp-for="DepartmentID" asp-items="@Model.Departments" required class="block w-full pr-10 pl-4 py-3 bg-white border border-border-light rounded-lg text-on-surface font-semibold focus:ring-2 focus:ring-primary-container focus:border-primary outline-none transition-all">
+                            <option value="">-- اختر القسم --</option>
+                        </select>
+                    </div>
+                    <span asp-validation-for="DepartmentID" class="text-xs text-red-600 font-semibold"></span>
+                </div>
+            }
+
+            <!-- Select Paper Type -->
+            <div class="space-y-2">
+                <label asp-for="PaperTypeID" class="block font-bold text-sm text-on-surface">نوع الورق المطلوب <span class="text-red-600">*</span></label>
+                <div class="relative">
+                    <select asp-for="PaperTypeID" asp-items="@Model.PaperTypes" required class="block w-full pr-10 pl-4 py-3 bg-white border border-border-light rounded-lg text-on-surface font-semibold focus:ring-2 focus:ring-primary-container focus:border-primary outline-none transition-all">
+                        <option value="">-- اختر نوع الورق --</option>
+                    </select>
+                </div>
+                <span asp-validation-for="PaperTypeID" class="text-xs text-red-600 font-semibold"></span>
+
+                <!-- Quota Information Card (Identical structure to Create.cshtml) -->
+                <div id="quotaCard"
+                     class="hidden mt-4 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm transition-all duration-300">
+
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-11 h-11 rounded-xl bg-amber-100 flex items-center justify-center">
+                                <i class="bi bi-pie-chart-fill text-amber-700 text-lg"></i>
+                            </div>
+                            <div>
+                                <p class="font-extrabold text-gray-900">حصة القسم</p>
+                                <p id="quotaPaperName" class="text-xs text-gray-500 mt-0.5">حصة هذا النوع من الورق</p>
+                            </div>
+                        </div>
+
+                        <span id="quotaStatusBadge"
+                              class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                            متاح
+                        </span>
+                    </div>
+
+                    <!-- Numbers Grid -->
+                    <div class="grid grid-cols-3 gap-3 mt-5">
+                        <div class="rounded-xl bg-white border border-gray-100 p-3 text-center">
+                            <p class="text-[11px] text-gray-500 font-semibold">الحصة الشهرية</p>
+                            <p id="quotaLimit" class="text-xl font-extrabold text-gray-900 mt-1">-</p>
+                            <p id="quotaLimitUnit" class="text-[10px] text-gray-400">رزمة</p>
+                        </div>
+
+                        <div class="rounded-xl bg-white border border-gray-100 p-3 text-center">
+                            <p class="text-[11px] text-gray-500 font-semibold">المستخدم</p>
+                            <p id="quotaUsed" class="text-xl font-extrabold text-gray-900 mt-1">-</p>
+                            <p id="quotaUsedUnit" class="text-[10px] text-gray-400">رزمة</p>
+                        </div>
+
+                        <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-3 text-center">
+                            <p class="text-[11px] text-emerald-700 font-semibold">المتبقي</p>
+                            <p id="quotaRemaining" class="text-xl font-extrabold text-emerald-700 mt-1">-</p>
+                            <p id="quotaRemainingUnit" class="text-[10px] text-emerald-600">رزمة</p>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="mt-5">
+                        <div class="flex justify-between text-[11px] mb-1.5">
+                            <span class="font-semibold text-gray-500">استهلاك الحصة</span>
+                            <span id="quotaPercentage" class="font-bold text-gray-700">0%</span>
+                        </div>
+                        <div class="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div id="quotaProgress" class="h-full bg-emerald-500 rounded-full transition-all duration-500" style="width:0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Quota Finished & Eligible Notice -->
+                    <div id="quotaEligibleNotice" class="hidden mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-300/60 flex items-center gap-2">
+                        <i class="bi bi-info-circle-fill text-amber-700"></i>
+                        <p class="text-xs font-semibold text-amber-900">
+                            الحصة الشهرية منتهية بالكامل. سيتم تسجيل هذا الطلب كطلب استثناء إضافي فوق الحصة المستهلكة.
+                        </p>
+                    </div>
+
+                    <!-- Quota Remaining Block Alert -->
+                    <div id="quotaBlockedNotice" class="hidden mt-4 p-3.5 rounded-xl bg-red-50 border border-red-300 text-red-900 flex items-start gap-2.5">
+                        <i class="bi bi-x-octagon-fill text-red-600 text-lg shrink-0 mt-0.5"></i>
+                        <div class="space-y-1.5">
+                            <p class="text-xs font-extrabold text-red-900">لا يمكن تقديم طلب استثناء لهذا القسم!</p>
+                            <p class="text-[11px] text-red-800 leading-relaxed">
+                                الحصة الشهرية المقررة لم تنفد بعد (المتبقي من الحصة: <strong id="quotaWarningNumber" class="text-red-900 font-black"></strong> <span id="quotaWarningUnit">رزمة</span>). طلبات الاستثناء مخصصة حصراً للأقسام بعد نفاد حصتها بالكامل.
+                            </p>
+                            <a href="@Url.Action("Create", "Request", new { area = "PaperManagement" })" class="inline-flex items-center gap-1.5 text-xs font-bold text-red-900 bg-red-100 hover:bg-red-200 px-3 py-1.5 rounded-lg border border-red-300 transition-colors">
+                                <span>الانتقال لنموذج طلب الصرف العادي</span>
+                                <i class="bi bi-arrow-left text-[10px]"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quantity Requested -->
+            <div class="space-y-2">
+                <label asp-for="RequestedQuantity" class="block font-bold text-sm text-on-surface">الكمية الاستثنائية المطلوبة (بالرزمة) <span class="text-red-600">*</span></label>
+                <div class="relative">
+                    <input asp-for="RequestedQuantity"
+                           id="requestedQuantity"
+                           type="number"
+                           min="1"
+                           max="100000"
+                           required
+                           class="block w-full pr-10 pl-4 py-3 bg-white border border-border-light rounded-lg text-on-surface font-semibold focus:ring-2 focus:ring-primary-container focus:border-primary outline-none transition-all"
+                           placeholder="أدخل الكمية المطلوبة" />
+                </div>
+                <span asp-validation-for="RequestedQuantity" class="text-xs text-red-600 font-semibold"></span>
+            </div>
+
+            <!-- Notes / Justification (Required for Exceptions) -->
+            <div class="space-y-2">
+                <label asp-for="Notes" class="block font-bold text-sm text-on-surface">سبب طلب الاستثناء <span class="text-red-600">*</span></label>
+                <textarea asp-for="Notes" rows="3" required
+                          class="block w-full p-4 bg-white border border-border-light rounded-lg text-on-surface font-semibold focus:ring-2 focus:ring-primary-container focus:border-primary outline-none transition-all placeholder:text-gray-400"
+                          placeholder="وضح بالتفصيل سبب الحاجة لصرف كمية استثنائية وطبيعة الأعمال المطلوب تنفيذها..."></textarea>
+                <span asp-validation-for="Notes" class="text-xs text-red-600 font-semibold"></span>
+            </div>
+
+            <!-- Submit Button (Matching Create.cshtml) -->
+            <button id="submitRequestButton"
+                    type="submit"
+                    class="w-full py-3.5 px-6 bg-primary text-white font-bold text-base rounded-lg shadow-sm hover:bg-primary/90 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                <span>إرسال طلب الاستثناء للاعتماد</span>
+                <i class="bi bi-send-fill text-lg"></i>
+            </button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const paperTypeSelect = document.getElementById('@Html.IdFor(m => m.PaperTypeID)');
+            const departmentSelect = document.getElementById('@Html.IdFor(m => m.DepartmentID)');
+            const quantityInput = document.getElementById('requestedQuantity');
+
+            // Remove the model's default 0 so the quantity box starts empty.
+            if (quantityInput && quantityInput.value === '0') {
+                quantityInput.value = '';
+            }
+
+            const quotaCard = document.getElementById('quotaCard');
+            const quotaLimit = document.getElementById('quotaLimit');
+            const quotaUsed = document.getElementById('quotaUsed');
+            const quotaRemaining = document.getElementById('quotaRemaining');
+            const quotaLimitUnit = document.getElementById('quotaLimitUnit');
+            const quotaUsedUnit = document.getElementById('quotaUsedUnit');
+            const quotaRemainingUnit = document.getElementById('quotaRemainingUnit');
+            const quotaWarningUnit = document.getElementById('quotaWarningUnit');
+            const quotaPercentage = document.getElementById('quotaPercentage');
+            const quotaProgress = document.getElementById('quotaProgress');
+            const quotaStatusBadge = document.getElementById('quotaStatusBadge');
+            const quotaPaperName = document.getElementById('quotaPaperName');
+            const submitButton = document.getElementById('submitRequestButton');
+            const eligibleNotice = document.getElementById('quotaEligibleNotice');
+            const blockedNotice = document.getElementById('quotaBlockedNotice');
+            const warningNumber = document.getElementById('quotaWarningNumber');
+
+            let quotaRequestVersion = 0;
+
+            function setSubmitDisabled(disabled) {
+                if (!submitButton) return;
+                submitButton.disabled = disabled;
+                submitButton.classList.toggle('opacity-50', disabled);
+                submitButton.classList.toggle('cursor-not-allowed', disabled);
+            }
+
+            function resetQuotaDisplay() {
+                quotaRequestVersion++;
+                if (quotaCard) quotaCard.classList.add('hidden');
+                setSubmitDisabled(false);
+            }
+
+            function isA3Selected() {
+                if (!paperTypeSelect || paperTypeSelect.selectedIndex <= 0) return false;
+                const selectedText = paperTypeSelect.options[paperTypeSelect.selectedIndex].text || '';
+                return selectedText.toUpperCase().includes('A3');
+            }
+
+            async function loadQuota() {
+                const paperTypeId = paperTypeSelect ? paperTypeSelect.value : '';
+                const departmentId = departmentSelect ? departmentSelect.value : null;
+
+                if (!paperTypeId || (departmentSelect && !departmentId)) {
+                    resetQuotaDisplay();
+                    return;
+                }
+
+                // A3 has no departmental quota. Keep the quota card completely hidden
+                // and do not request quota data from the server for this paper type.
+                if (isA3Selected()) {
+                    quotaRequestVersion++;
+                    if (quotaCard) quotaCard.classList.add('hidden');
+                    if (eligibleNotice) eligibleNotice.classList.add('hidden');
+                    if (blockedNotice) blockedNotice.classList.add('hidden');
+                    setSubmitDisabled(false);
+                    if (submitButton) submitButton.title = '';
+                    return;
+                }
+
+                const requestVersion = ++quotaRequestVersion;
+                if (quotaCard) quotaCard.classList.remove('hidden');
+
+                if (quotaLimit) quotaLimit.textContent = '...';
+                if (quotaUsed) quotaUsed.textContent = '...';
+                if (quotaRemaining) quotaRemaining.textContent = '...';
+
+                try {
+                    const query = new URLSearchParams({ paperTypeId: paperTypeId });
+                    if (departmentId) {
+                        query.set('departmentId', departmentId);
+                    }
+
+                    const url = '@Url.Action("GetPaperQuotaStatus", "Request", new { area = "PaperManagement" })'
+                        + '?' + query.toString();
+
+                    const response = await fetch(url, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        cache: 'no-store'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to load quota');
+                    }
+
+                    const data = await response.json();
+                    if (requestVersion !== quotaRequestVersion) {
+                        return;
+                    }
+
+                    const remaining = Number(data.remainingQuota) || 0;
+                    if (quotaLimit) quotaLimit.textContent = Number(data.quotaLimit).toLocaleString('en-US');
+                    if (quotaLimitUnit) quotaLimitUnit.textContent = rezmaUnit(data.quotaLimit);
+                    if (quotaUsed) quotaUsed.textContent = Number(data.usedQuota).toLocaleString('en-US');
+                    if (quotaUsedUnit) quotaUsedUnit.textContent = rezmaUnit(data.usedQuota);
+                    if (quotaRemaining) quotaRemaining.textContent = remaining.toLocaleString('en-US');
+                    if (quotaRemainingUnit) quotaRemainingUnit.textContent = rezmaUnit(remaining);
+
+                    if (quotaPaperName && paperTypeSelect && paperTypeSelect.selectedIndex > 0) {
+                        quotaPaperName.textContent = 'حصة ورق ' + paperTypeSelect.options[paperTypeSelect.selectedIndex].text;
+                    }
+
+                    let percentage = 0;
+                    if (data.quotaLimit > 0) {
+                        percentage = Math.round((data.usedQuota / data.quotaLimit) * 100);
+                    }
+                    percentage = Math.min(100, Math.max(0, percentage));
+
+                    if (quotaPercentage) quotaPercentage.textContent = percentage + '%';
+                    if (quotaProgress) quotaProgress.style.width = percentage + '%';
+
+                    const selectedOptionText = (paperTypeSelect && paperTypeSelect.selectedIndex > 0)
+                        ? paperTypeSelect.options[paperTypeSelect.selectedIndex].text
+                        : '';
+                    const isA3 = selectedOptionText.toUpperCase().includes('A3');
+
+                    if (isA3) {
+                        // A3 is an exception-only paper; eligible directly without quota block
+                        if (quotaStatusBadge) {
+                            quotaStatusBadge.textContent = 'ورق استثنائي (مؤهل للطلب)';
+                            quotaStatusBadge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300';
+                        }
+                        if (quotaRemaining) quotaRemaining.className = 'text-xl font-extrabold text-amber-700 mt-1';
+                        if (quotaProgress) quotaProgress.className = 'h-full bg-amber-500 rounded-full transition-all duration-500';
+
+                        if (blockedNotice) blockedNotice.classList.add('hidden');
+                        if (eligibleNotice) {
+                            eligibleNotice.classList.remove('hidden');
+                            const eligibleText = eligibleNotice.querySelector('p');
+                            if (eligibleText) {
+                                eligibleText.textContent = 'ورق A3 مخصص حصرياً لطلبات الاستثناء ولا يتطلب استنفاد حصة شهرية عادية.';
+                            }
+                        }
+
+                        setSubmitDisabled(false);
+                        if (submitButton) submitButton.title = '';
+                    } else if (remaining > 0) {
+                        // Quota not finished yet -> Block exception request
+                        if (quotaStatusBadge) {
+                            quotaStatusBadge.textContent = 'الحصة لم تنفد بعد (' + remaining + ' متبقي)';
+                            quotaStatusBadge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200';
+                        }
+                        if (quotaRemaining) quotaRemaining.className = 'text-xl font-extrabold text-red-700 mt-1';
+                        if (quotaProgress) quotaProgress.className = 'h-full bg-amber-500 rounded-full transition-all duration-500';
+
+                        if (eligibleNotice) eligibleNotice.classList.add('hidden');
+                        if (blockedNotice) blockedNotice.classList.remove('hidden');
+                        if (warningNumber) warningNumber.textContent = remaining;
+                        if (quotaWarningUnit) quotaWarningUnit.textContent = rezmaUnit(remaining);
+
+                        setSubmitDisabled(true);
+                        if (submitButton) submitButton.title = 'لا يمكن تقديم طلب استثناء قبل نفاد الحصة الشهرية بالكامل';
+                    } else {
+                        // Quota finished (remaining <= 0) -> Eligible for exception request
+                        if (quotaStatusBadge) {
+                            quotaStatusBadge.textContent = 'الحصة منتهية بالكامل (مؤهل للاستثناء)';
+                            quotaStatusBadge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300';
+                        }
+                        if (quotaRemaining) quotaRemaining.className = 'text-xl font-extrabold text-amber-700 mt-1';
+                        if (quotaProgress) quotaProgress.className = 'h-full bg-red-500 rounded-full transition-all duration-500';
+
+                        if (blockedNotice) blockedNotice.classList.add('hidden');
+                        if (eligibleNotice) {
+                            eligibleNotice.classList.remove('hidden');
+                            const eligibleText = eligibleNotice.querySelector('p');
+                            if (eligibleText) {
+                                eligibleText.textContent = 'الحصة الشهرية منتهية بالكامل. سيتم تسجيل هذا الطلب كطلب استثناء إضافي فوق الحصة المستهلكة.';
+                            }
+                        }
+
+                        setSubmitDisabled(false);
+                        if (submitButton) submitButton.title = '';
+                    }
+                } catch (error) {
+                    console.error('Quota loading error:', error);
+                    if (requestVersion !== quotaRequestVersion) return;
+                    if (quotaCard) quotaCard.classList.add('hidden');
+                    setSubmitDisabled(false);
+                }
+            }
+
+            if (paperTypeSelect) {
+                paperTypeSelect.addEventListener('change', loadQuota);
+            }
+
+            if (departmentSelect) {
+                departmentSelect.addEventListener('change', loadQuota);
+            }
+
+            if (paperTypeSelect && paperTypeSelect.value && (!departmentSelect || departmentSelect.value)) {
+                loadQuota();
+            }
+        });
+    </script>
+}

@@ -1,0 +1,101 @@
+@model List<Resource_Management_System.Models.RequestItemViewModel>
+@{
+    ViewData["Title"] = "آخر صرف وطلبات قيد الانتظار";
+    var filter = ViewBag.Filter as Resource_Management_System.Models.RequestFilterViewModel ?? new Resource_Management_System.Models.RequestFilterViewModel();
+    string viewMode = ViewBag.ViewMode as string ?? "all";
+}
+
+<div class="space-y-6">
+    <div class="flex items-center justify-between no-print">
+        <div>
+            <h2 class="text-2xl font-extrabold text-on-surface mb-1">آخر صرف وطلبات قيد الانتظار</h2>
+            <p class="text-sm text-on-surface-variant">يعرض تاريخ الصرف الفعلي وليس تاريخ اعتماد العميد.</p>
+        </div>
+        <button type="button" onclick="window.print()" class="btn btn-primary btn-sm"><i class="bi bi-printer"></i> طباعة</button>
+    </div>
+
+    <div class="card mb-4 shadow-sm border-0 no-print">
+        <div class="card-body bg-light rounded-3 p-3">
+            <form method="get" data-instant-filter="true" data-auto-filter="true" class="row g-3 align-items-end">
+                <div class="col-md-3 col-sm-6">
+                    <label asp-for="@filter.DepartmentID" class="form-label fw-bold text-secondary small">القسم</label>
+                    <select asp-for="@filter.DepartmentID" asp-items="filter.Departments" class="form-select form-select-sm">
+                        <option value="">-- كل الأقسام --</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label fw-bold text-secondary small">الحالة</label>
+                    <select name="viewMode" class="form-select form-select-sm">
+                        <option value="all" selected="@(viewMode == "all")">الكل</option>
+                        <option value="issued" selected="@(viewMode == "issued")">تم الصرف فقط</option>
+                        <option value="pending" selected="@(viewMode == "pending")">قيد الانتظار (لم تُعتمد بعد)</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-sm-6">
+                    <label asp-for="@filter.FromDate" class="form-label fw-bold text-secondary small">من تاريخ</label>
+                    <input asp-for="@filter.FromDate" type="date" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2 col-sm-6">
+                    <label asp-for="@filter.ToDate" class="form-label fw-bold text-secondary small">إلى تاريخ</label>
+                    <input asp-for="@filter.ToDate" type="date" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2 col-sm-12 d-flex gap-2">
+                    <span class="btn btn-outline-success btn-sm flex-grow-1 disabled" aria-disabled="true"><i class="bi bi-lightning-charge"></i> تحديث تلقائي</span>
+                    <a href="@Url.Action("LastIssued")" data-instant-filter-reset="true" class="btn btn-outline-secondary btn-sm" title="إعادة ضبط"><i class="bi bi-arrow-counterclockwise"></i></a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="bg-surface-white rounded-xl p-12 text-center border border-border-light shadow-sm">
+            <i class="bi bi-inbox text-gray-300 text-6xl mb-3 block"></i>
+            <h3 class="text-lg font-bold text-gray-700">لا توجد بيانات مطابقة</h3>
+        </div>
+    }
+    else
+    {
+        <div class="bg-surface-white rounded-xl shadow-sm border border-border-light overflow-hidden">
+            <table class="w-full text-right text-sm">
+                <thead class="bg-background-subtle border-b border-border-light text-on-surface-variant font-bold">
+                    <tr>
+                        <th class="py-4 px-4">رقم الطلب</th>
+                        <th class="py-4 px-4">القسم</th>
+                        <th class="py-4 px-4">النوع</th>
+                        <th class="py-4 px-4">الكمية</th>
+                        <th class="py-4 px-4">الحالة</th>
+                        <th class="py-4 px-4">تاريخ الطلب</th>
+                        <th class="py-4 px-4">تاريخ الصرف</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-light font-semibold">
+                    @foreach (var item in Model)
+                    {
+                        <tr class="hover:bg-gray-50/80 transition-colors">
+                            <td class="py-4 px-4 font-bold text-primary">#@item.RequestID</td>
+                            <td class="py-4 px-4">@item.DepartmentName</td>
+                            <td class="py-4 px-4"><span class="badge bg-light text-dark border">@item.PaperTypeName</span></td>
+                            <td class="py-4 px-4 font-bold">@item.RequestedQuantity @QuantityHelper.RezmaUnit(item.RequestedQuantity)</td>
+                            <td class="py-4 px-4">
+                                @await Html.PartialAsync("_StatusBadge", item.Status)
+                            </td>
+                            <td class="py-4 px-4 text-gray-500 text-xs">@item.RequestDate.ToEgyptTime().ToString("yyyy/MM/dd HH:mm")</td>
+                            <td class="py-4 px-4 text-xs">
+                                @if (item.IssuedDate.HasValue)
+                                {
+                                    <span class="block text-emerald-700">@item.IssuedDate.Value.ToEgyptTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                    <span class="text-[11px] text-gray-400">بواسطة: @(item.IssuedByName ?? "-")</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">-</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

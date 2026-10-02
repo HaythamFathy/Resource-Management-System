@@ -1,0 +1,168 @@
+﻿@model Resource_Management_System.Models.DashboardViewModel
+@{
+    var departments = Model.Filter.Departments?.ToList() ?? new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+    var isApproverLookup = User.IsInRole(Resource_Management_System.Common.Roles.Approver);
+    var serviceDeskGroup1 = departments
+        .Where(d => int.TryParse(d.Value, out var id) && id <= 24)
+        .OrderBy(d => int.Parse(d.Value))
+        .ToList();
+    var serviceDeskGroup2 = departments
+        .Where(d => int.TryParse(d.Value, out var id) && id > 24)
+        .OrderBy(d => int.Parse(d.Value))
+        .ToList();
+}
+
+<section id="serviceDeskRoot" data-is-approver="@isApproverLookup.ToString().ToLowerInvariant()" class="relative overflow-visible rounded-2xl border border-[#34435E]/20 bg-white shadow-sm">
+    <div class="absolute inset-x-0 top-0 h-1.5 bg-[#34435E] rounded-t-2xl"></div>
+
+    <div class="p-5 lg:p-6 space-y-5">
+        <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+            <div class="flex items-start gap-3">
+                <div class="w-11 h-11 rounded-xl bg-[#34435E] text-white flex items-center justify-center shadow-sm shrink-0">
+                    <span class="material-symbols-outlined text-2xl">support_agent</span>
+                </div>
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h2 class="text-lg font-black text-on-surface">الاستعلام عن جهة</h2>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="serviceDeskFilterCard" class="rounded-2xl bg-[#34435E] p-4 relative z-20 shadow-sm">
+
+            <div class="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr_auto] gap-3 items-end">
+                <div>
+                    <label for="serviceDeskDeptSearch" class="block text-xs font-extrabold text-white mb-1.5">اكتب اسم الجهة أو رقمها</label>
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute right-3 top-2.5 text-white/60 text-lg">search</span>
+                        <input id="serviceDeskDeptSearch" type="search" autocomplete="off" placeholder="مثال: القاهرة أو 6"
+                               class="w-full rounded-xl border border-white/20 bg-white/10 text-white placeholder-white/55 pr-10 pl-3 py-2.5 text-sm font-bold focus:bg-white focus:text-neutral-900 focus:placeholder-neutral-400 focus:border-white outline-none transition-all" />
+                    </div>
+                </div>
+
+                <div class="relative">
+                    <label class="block text-xs font-extrabold text-white mb-1.5">اختر جهة أو أكثر</label>
+                    <button type="button" id="serviceDeskDeptPickerBtn" onclick="toggleServiceDeskPicker(event)" aria-expanded="false"
+                            class="w-full h-[42px] rounded-xl border border-white/20 bg-white text-neutral-800 px-3 text-sm font-bold flex items-center justify-between gap-3 hover:border-[#58a4b0] transition-colors">
+                        <span class="flex items-center gap-2 min-w-0">
+                            <span class="material-symbols-outlined text-[#34435E] text-lg">checklist</span>
+                            <span id="serviceDeskDeptPickerText" class="truncate">— اختر جهة أو أكثر —</span>
+                        </span>
+                        <span class="flex items-center gap-2 shrink-0">
+                            <span id="serviceDeskSelectedCount" class="hidden rounded-full bg-[#34435E] text-white px-2 py-0.5 text-[10px] font-black">0</span>
+                            <span id="serviceDeskPickerChevron" class="material-symbols-outlined text-neutral-400 transition-transform">expand_more</span>
+                        </span>
+                    </button>
+                </div>
+
+                <button type="button" id="serviceDeskLoadBtn" onclick="loadDepartmentServiceDesk()"
+                        class="h-[42px] bg-[#58a4b0] hover:bg-[#4c929d] text-white font-black rounded-xl px-5 flex items-center justify-center gap-2 shadow-sm transition-all whitespace-nowrap">
+                    <span class="material-symbols-outlined text-lg">bolt</span>
+                    <span id="serviceDeskLoadBtnText">اعرض المحدد</span>
+                </button>
+            </div>
+
+            <div id="serviceDeskSelectedChips" class="hidden flex flex-wrap gap-1.5 mt-3"></div>
+
+            <div id="serviceDeskDeptPickerPanel" class="hidden absolute right-4 left-4 top-full mt-2 rounded-2xl border border-neutral-200 bg-white shadow-2xl p-4 text-neutral-800 z-50">
+                <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-neutral-200">
+                    <div>
+                        <p class="text-xs font-black text-[#34435E]">حدد جهة واحدة أو عدة جهات</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="selectVisibleServiceDeskDepartments()" class="rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-[#34435E]/5 px-3 py-1.5 text-[10px] font-black text-[#34435E]">تحديد الظاهر</button>
+                        <button type="button" onclick="clearServiceDeskDepartments()" class="rounded-lg border border-red-100 bg-red-50 hover:bg-red-100 px-3 py-1.5 text-[10px] font-black text-red-700">إعادة تعيين</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="rounded-xl border border-neutral-200 overflow-hidden" data-service-desk-group="group1">
+                        <div class="px-3 py-2 bg-[#34435E]/5 border-b border-neutral-200 flex items-center justify-between gap-2">
+                            <span class="text-[11px] font-black text-[#34435E]">إدارات الشركة والأفرع</span>
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" onclick="selectServiceDeskGroup('group1')" class="rounded-lg bg-white border border-[#34435E]/15 hover:bg-[#34435E]/5 px-2 py-1 text-[9px] font-black text-[#34435E]">تحديد الكل</button>
+                                <span class="text-[9px] font-black rounded-full bg-white border border-neutral-200 px-2 py-0.5">@serviceDeskGroup1.Count جهة</span>
+                            </div>
+                        </div>
+                        <div class="max-h-52 overflow-y-auto p-2 space-y-1">
+                            @foreach (var dept in serviceDeskGroup1)
+                            {
+                                var searchText = $"{dept.Value} {dept.Text}".ToLowerInvariant();
+                                <label class="service-desk-dept-item flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-neutral-50 cursor-pointer" data-search="@searchText">
+                                    <input type="checkbox" value="@dept.Value" data-name="@dept.Text" onchange="updateServiceDeskSelection()"
+                                           class="service-desk-dept-chk w-4 h-4 rounded border-neutral-300 text-[#34435E] focus:ring-[#34435E] cursor-pointer" />
+                                    <span class="w-7 text-center text-[10px] font-black text-neutral-400">#@dept.Value</span>
+                                    <span class="text-xs font-bold text-neutral-800">@dept.Text</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-neutral-200 overflow-hidden" data-service-desk-group="group2">
+                        <div class="px-3 py-2 bg-[#58a4b0]/10 border-b border-neutral-200 flex items-center justify-between gap-2">
+                            <span class="text-[11px] font-black text-[#2e6f7b]">القطاعات والوحدات</span>
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" onclick="selectServiceDeskGroup('group2')" class="rounded-lg bg-white border border-[#58a4b0]/20 hover:bg-[#58a4b0]/10 px-2 py-1 text-[9px] font-black text-[#2e6f7b]">تحديد الكل</button>
+                                <span class="text-[9px] font-black rounded-full bg-white border border-neutral-200 px-2 py-0.5">@serviceDeskGroup2.Count جهة</span>
+                            </div>
+                        </div>
+                        <div class="max-h-52 overflow-y-auto p-2 space-y-1">
+                            @foreach (var dept in serviceDeskGroup2)
+                            {
+                                var searchText = $"{dept.Value} {dept.Text}".ToLowerInvariant();
+                                <label class="service-desk-dept-item flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-neutral-50 cursor-pointer" data-search="@searchText">
+                                    <input type="checkbox" value="@dept.Value" data-name="@dept.Text" onchange="updateServiceDeskSelection()"
+                                           class="service-desk-dept-chk w-4 h-4 rounded border-neutral-300 text-[#58a4b0] focus:ring-[#58a4b0] cursor-pointer" />
+                                    <span class="w-7 text-center text-[10px] font-black text-neutral-400">#@dept.Value</span>
+                                    <span class="text-xs font-bold text-neutral-800">@dept.Text</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="serviceDeskResult" class="min-h-[130px] relative z-10">
+            <div class="rounded-2xl border-2 border-dashed border-neutral-200 bg-neutral-50/70 px-5 py-8 text-center">
+                <div class="w-12 h-12 mx-auto rounded-full bg-white border border-neutral-200 flex items-center justify-center text-neutral-400 mb-3">
+                    <span class="material-symbols-outlined text-2xl">touch_app</span>
+                </div>
+                <p class="font-extrabold text-neutral-700 text-sm">اختر جهة واحدة أو أكثر من فوق</p>
+                <p class="text-xs text-neutral-500 mt-1">لجهة واحدة يظهر الملف الكامل، ولعدة جهات تظهر مقارنة سريعة للحصص والمصروف ومكان الطلبات.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Read-only request details popup used by the dashboard lookup/comparison. -->
+<div id="serviceDeskRequestDetailsModal"
+     class="fixed inset-0 z-[120] hidden items-center justify-center bg-black/45 p-4"
+     role="dialog" aria-modal="true" aria-labelledby="serviceDeskRequestDetailsTitle"
+     onclick="if (event.target === this) closeServiceDeskRequestDetails();">
+    <div class="w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-2xl border border-neutral-200 flex flex-col">
+        <div class="px-5 py-4 border-b border-neutral-200 flex items-center justify-between gap-3 bg-[#34435E] text-white">
+            <div>
+                <p class="text-[10px] font-bold text-white/70">تفاصيل الطلب</p>
+                <h3 id="serviceDeskRequestDetailsTitle" class="text-lg font-black">طلب</h3>
+            </div>
+            <button type="button" onclick="closeServiceDeskRequestDetails()"
+                    class="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center"
+                    aria-label="إغلاق">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        <div id="serviceDeskRequestDetailsBody" class="overflow-y-auto p-5 bg-neutral-50 min-h-[260px]">
+            <div class="py-12 text-center text-neutral-500">
+                <span class="material-symbols-outlined text-3xl animate-spin text-primary">progress_activity</span>
+                <p class="text-xs font-black mt-2">جارِ تحميل تفاصيل الطلب...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="~/js/dashboard-department-quickdesk.js" asp-append-version="true"></script>

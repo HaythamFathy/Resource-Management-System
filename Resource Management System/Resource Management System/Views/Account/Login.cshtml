@@ -1,0 +1,88 @@
+@model Resource_Management_System.Models.LoginViewModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>تسجيل الدخول</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="~/lib/material-symbols/material-symbols-outlined.css" rel="stylesheet" asp-append-version="true" />
+    <script id="tailwind-config">
+            tailwind.config = {
+                darkMode: "class",
+                theme: {
+                    extend: {
+                        colors: {
+                            "primary": "#34435E",
+                            "primary-container": "#58a4b0",
+                            "secondary": "#4e6072",
+                            "background": "#f4f7fb"
+                        },
+                        fontFamily: {
+                            "sans": ["Cairo", "sans-serif"]
+                        }
+                    }
+                }
+            }
+    </script>
+    <style>
+            body {
+                font-family: 'Cairo', sans-serif;
+                background: linear-gradient(135deg, #eef3f8 0%, #f8fafd 50%, #e9eef6 100%);
+            }
+
+            .material-symbols-outlined {
+                font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+                vertical-align: middle;
+            }
+
+            .user-card {
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+                .user-card:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 12px 25px -5px rgba(52, 67, 94, 0.12), 0 8px 10px -6px rgba(52, 67, 94, 0.08);
+                }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 md:p-8">
+    <div class="max-w-6xl w-full mx-auto my-auto py-6">
+
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center p-3 bg-primary/10 text-primary rounded-2xl mb-3 shadow-inner">
+                <span class="material-symbols-outlined text-4xl">description</span>
+            </div>
+            <h1 class="text-3xl font-extrabold text-[#1f2937] tracking-tight mb-2">تسجيل الدخول</h1>
+        </div>
+
+        <form asp-controller="Account" asp-action="Login" method="post" class="max-w-md mx-auto bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-5">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-sm text-red-700"></div>
+            <div>
+                <label asp-for="UserName" class="block mb-2 font-bold text-sm text-gray-700">اسم المستخدم</label>
+                <input asp-for="UserName" autocomplete="username" class="w-full rounded-xl border-gray-300 focus:border-primary focus:ring-primary" />
+                <span asp-validation-for="UserName" class="text-sm text-red-700"></span>
+            </div>
+            <div>
+                <label asp-for="Password" class="block mb-2 font-bold text-sm text-gray-700">كلمة المرور</label>
+                <input asp-for="Password" autocomplete="current-password" class="w-full rounded-xl border-gray-300 focus:border-primary focus:ring-primary" />
+                <span asp-validation-for="Password" class="text-sm text-red-700"></span>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-gray-600">
+                <input asp-for="RememberMe" class="rounded border-gray-300 text-primary focus:ring-primary" />
+                تذكرني على هذا الجهاز
+            </label>
+            <button type="submit" class="w-full py-3 px-4 rounded-xl font-bold text-sm text-white bg-primary hover:bg-[#28354d] flex items-center justify-center gap-2 shadow-sm">
+                <span>تسجيل الدخول</span>
+                <span class="material-symbols-outlined text-lg">login</span>
+            </button>
+        </form>
+    </div>
+</body>
+</html>

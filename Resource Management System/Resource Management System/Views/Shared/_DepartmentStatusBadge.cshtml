@@ -1,0 +1,30 @@
+﻿@model string
+@*
+    Department-only status badge. Used exclusively on MyRequests.cshtml.
+    Do NOT use this on IT / Approver / Admin views — they use _StatusBadge.cshtml,
+    which shows the full, detailed internal workflow status instead.
+*@
+@{
+    var status = Model ?? "";
+    var (label, cssClasses) = Resource_Management_System.Common.StatusDisplayHelper.GetDepartmentBadgeInfo(status);
+    var icon = status switch
+    {
+        Resource_Management_System.Common.RequestStatus.PendingITReview
+            or Resource_Management_System.Common.RequestStatus.PendingITReReview
+            or Resource_Management_System.Common.RequestStatus.PendingApproverOne
+            or Resource_Management_System.Common.RequestStatus.PendingApproverTwo
+            => "hourglass_top",
+
+        Resource_Management_System.Common.RequestStatus.Approved
+            => "inventory_2",
+
+        Resource_Management_System.Common.RequestStatus.Issued
+            => "task_alt",
+
+        Resource_Management_System.Common.RequestStatus.Rejected
+            => "cancel",
+
+        _ => "info"
+    };
+}
+<span class="@cssClasses d-inline-flex align-items-center gap-1"><span class="material-symbols-outlined" style="font-size:15px">@icon</span>@label</span>

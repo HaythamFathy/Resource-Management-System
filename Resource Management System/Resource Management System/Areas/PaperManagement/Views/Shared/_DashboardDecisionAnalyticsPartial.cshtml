@@ -1,0 +1,1022 @@
+@model Resource_Management_System.Models.DashboardViewModel
+@using System.Globalization
+@using System.Text.Json
+@{
+    var analyticsRequests = Model.AnalyticsRequests ?? new List<Resource_Management_System.Models.RequestItemViewModel>();
+    var analyticsCurrentRequests = Model.AnalyticsCurrentRequests ?? new List<Resource_Management_System.Models.RequestItemViewModel>();
+
+    bool IsInsideAnalyticsPeriod(DateTime localDate)
+    {
+        var date = localDate.Date;
+        return (!Model.AnalyticsEffectiveFromDate.HasValue || date >= Model.AnalyticsEffectiveFromDate.Value.Date)
+            && (!Model.AnalyticsEffectiveToDate.HasValue || date <= Model.AnalyticsEffectiveToDate.Value.Date);
+    }
+
+    // Issuance metrics must follow the actual issue date, not the request creation date.
+    var issuedRequests = analyticsCurrentRequests
+        .Where(r => r.Status == RequestStatus.Issued
+            && r.IssuedDate.HasValue
+            && IsInsideAnalyticsPeriod(r.IssuedDate.Value.ToEgyptTime()))
+        .ToList();
+
+    var allDepts = Model.Filter?.Departments?.Where(d => !string.IsNullOrWhiteSpace(d.Value)).ToList() ?? new List<SelectListItem>();
+    var group1Depts = allDepts.Where(d => int.TryParse(d.Value, out var id) && id <= 24).ToList();
+    var group2Depts = allDepts.Where(d => int.TryParse(d.Value, out var id) && id > 24).ToList();
+    var selectedAnalyticsIds = Model.AnalyticsDepartmentIDs ?? new List<int>();
+    var paperTypes = Model.Filter?.PaperTypes?.Where(p => !string.IsNullOrWhiteSpace(p.Value)).ToList() ?? new List<SelectListItem>();
+
+    var scopeLabel = Model.AnalyticsScope switch
+    {
+        "group1" => "إدارات الشركة والأفرع",
+        "group2" => "القطاعات والوحدات",
+        "custom" => $"{selectedAnalyticsIds.Count} جهة محددة",
+        _ => "كل الجهات"
+    };
+
+    var nowEgypt = DateTime.UtcNow.ToEgyptTime().Date;
+
+    // Keep the custom date fields visually empty until the user chooses both dates.
+    // The dashboard can still render its normal default analytics period in the background,
+    // but the custom range control should read as an explicit choice, not a pre-filled range.
+    var defaultFrom = Model.AnalyticsPeriod == "custom"
+        ? (Model.AnalyticsCustomFromDate?.ToString("yyyy-MM-dd") ?? string.Empty)
+        : string.Empty;
+    var defaultTo = Model.AnalyticsPeriod == "custom"
+        ? (Model.AnalyticsCustomToDate?.ToString("yyyy-MM-dd") ?? string.Empty)
+        : string.Empty;
+    var resetFrom = string.Empty;
+    var resetTo = string.Empty;
+    var periodLabel = !string.IsNullOrWhiteSpace(defaultFrom) && !string.IsNullOrWhiteSpace(defaultTo)
+        ? $"من {defaultFrom} إلى {defaultTo}"
+        : "اختر تاريخ البداية والنهاية";
+
+    var paperLabel = "كل أنواع الورق";
+    if (Model.AnalyticsPaperTypeID.HasValue)
+    {
+        paperLabel = paperTypes.FirstOrDefault(p => p.Value == Model.AnalyticsPaperTypeID.Value.ToString())?.Text ?? $"نوع #{Model.AnalyticsPaperTypeID.Value}";
+    }
+
+    var filteredExceptionCount = analyticsRequests.Count(r => r.IsException);
+    var filteredExceptionRate = analyticsRequests.Count > 0
+        ? Math.Round(filteredExceptionCount * 100d / analyticsRequests.Count, 1)
+        : 0;
+    var filteredExceptionIssuedQty = issuedRequests.Where(r => r.IsException).Sum(r => r.RequestedQuantity);
+    var filteredNormalIssuedQty = issuedRequests.Where(r => !r.IsException).Sum(r => r.RequestedQuantity);
+    var filteredReReviewCount = analyticsCurrentRequests.Count(r => r.Status == RequestStatus.PendingITReReview);
+    var filteredRejectedCount = analyticsRequests.Count(r => r.Status == RequestStatus.Rejected || r.Status == "RejectedByIT");
+
+    // SECTION 2: Fixed current-period bar chart + 12-month top-department baseline charts.
+    // The first chart always shows Today / Current Week / Current Month and updates from live issue data.
+    var defaultChartTo = nowEgypt;
+    var defaultChartFrom = nowEgypt.AddMonths(-12).AddDays(1);
+
+    var staticChartIssuedRequests = analyticsCurrentRequests
+        .Where(r => r.Status == RequestStatus.Issued
+            && r.IssuedDate.HasValue
+            && r.IssuedDate.Value.ToEgyptTime().Date >= defaultChartFrom
+            && r.IssuedDate.Value.ToEgyptTime().Date <= defaultChartTo)
+        .ToList();
+
+    int SumStaticIssued(DateTime fromInclusive, DateTime toExclusive, bool exception)
+    {
+        return staticChartIssuedRequests.Where(r =>
+        {
+            if (!r.IssuedDate.HasValue || r.IsException != exception) return false;
+            var issuedDate = r.IssuedDate.Value.ToEgyptTime();
+            return issuedDate >= fromInclusive && issuedDate < toExclusive;
+        }).Sum(r => r.RequestedQuantity);
+    }
+
+    // Egypt business week: Sunday through Saturday.
+    var todayStart = nowEgypt;
+    var tomorrowStart = nowEgypt.AddDays(1);
+    var currentWeekStart = nowEgypt.AddDays(-(int)nowEgypt.DayOfWeek);
+    var currentMonthStart = new DateTime(nowEgypt.Year, nowEgypt.Month, 1);
+
+    var timelineLabels = new List<string> { "اليوم", "هذا الأسبوع", "هذا الشهر" };
+    var timelineNormalIssued = new List<int>
+    {
+        SumStaticIssued(todayStart, tomorrowStart, false),
+        SumStaticIssued(currentWeekStart, tomorrowStart, false),
+        SumStaticIssued(currentMonthStart, tomorrowStart, false)
+    };
+    var timelineExceptionIssued = new List<int>
+    {
+        SumStaticIssued(todayStart, tomorrowStart, true),
+        SumStaticIssued(currentWeekStart, tomorrowStart, true),
+        SumStaticIssued(currentMonthStart, tomorrowStart, true)
+    };
+
+    var topCompanyBranches = staticChartIssuedRequests
+        .Where(r => r.DepartmentID <= 24)
+        .GroupBy(r => new { r.DepartmentID, r.DepartmentName })
+        .Select(g => new
+        {
+            g.Key.DepartmentID,
+            DepartmentName = (g.Key.DepartmentName ?? "").Trim().Replace("\r", " ").Replace("\n", " "),
+            Normal = g.Where(r => !r.IsException).Sum(r => r.RequestedQuantity),
+            Exception = g.Where(r => r.IsException).Sum(r => r.RequestedQuantity),
+            Total = g.Sum(r => r.RequestedQuantity)
+        })
+        .OrderByDescending(x => x.Total)
+        .ThenBy(x => x.DepartmentID)
+        .Take(4)
+        .ToList();
+
+    var topSectorsUnits = staticChartIssuedRequests
+        .Where(r => r.DepartmentID > 24)
+        .GroupBy(r => new { r.DepartmentID, r.DepartmentName })
+        .Select(g => new
+        {
+            g.Key.DepartmentID,
+            DepartmentName = (g.Key.DepartmentName ?? "").Trim().Replace("\r", " ").Replace("\n", " "),
+            Normal = g.Where(r => !r.IsException).Sum(r => r.RequestedQuantity),
+            Exception = g.Where(r => r.IsException).Sum(r => r.RequestedQuantity),
+            Total = g.Sum(r => r.RequestedQuantity)
+        })
+        .OrderByDescending(x => x.Total)
+        .ThenBy(x => x.DepartmentID)
+        .Take(4)
+        .ToList();
+
+    var effectiveRangeLabel = Model.AnalyticsPeriod == "all"
+        ? "من بداية البيانات حتى الآن"
+        : (Model.AnalyticsEffectiveFromDate.HasValue
+            ? $"{Model.AnalyticsEffectiveFromDate.Value:yyyy-MM-dd} → {Model.AnalyticsEffectiveToDate.GetValueOrDefault(nowEgypt):yyyy-MM-dd}"
+            : periodLabel);
+
+    var decisionAnalyticsChartDataJson = JsonSerializer.Serialize(new
+    {
+        timelineLabels,
+        timelineNormalIssued,
+        timelineExceptionIssued,
+        topCompanyLabels = topCompanyBranches.Select(x => x.DepartmentName).ToList(),
+        topCompanyNormal = topCompanyBranches.Select(x => x.Normal).ToList(),
+        topCompanyException = topCompanyBranches.Select(x => x.Exception).ToList(),
+        topSectorLabels = topSectorsUnits.Select(x => x.DepartmentName).ToList(),
+        topSectorNormal = topSectorsUnits.Select(x => x.Normal).ToList(),
+        topSectorException = topSectorsUnits.Select(x => x.Exception).ToList()
+    });
+}
+
+<style>
+  .decision-analytics-filter-grid {display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(185px,.72fr);gap:14px;align-items:stretch;}
+  .decision-analytics-filter-grid > div {min-width:0;margin-bottom:0!important;height:100%;}
+  .decision-analytics-filter-grid .analytics-scope-option {min-height:44px;padding:8px!important;}
+  @@media (max-width:1279px){.decision-analytics-filter-grid {grid-template-columns:1fr;}}
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr@4.6.13/dist/l10n/ar.js"></script>
+
+<div id="decisionAnalyticsCenter" class="space-y-6">
+    <script type="application/json" id="decisionAnalyticsChartData">@Html.Raw(decisionAnalyticsChartDataJson)</script>
+
+    <!-- 1. BAR CHARTS SECTION: الرسوم والمخططات البيانية للأعمدة -->
+    <section id="decisionAnalyticsChartsSection" class="w-full bg-surface-white p-5 rounded-2xl border border-border-light shadow-sm space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-border-light">
+            <div class="flex items-center gap-2.5">
+                <span class="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center shadow-sm">
+                    <span class="material-symbols-outlined text-xl">bar_chart</span>
+                </span>
+                <div>
+                    <h2 class="text-base md:text-lg font-black text-on-surface">الرسوم البيانية</h2>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
+            <div class="px-4 py-3 border-b border-neutral-200 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div>
+                    <h3 class="text-sm font-black text-on-surface flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-lg">timeline</span>
+                        المصروف — اليوم / الأسبوع / الشهر
+                    </h3>
+                </div>
+                <div class="flex items-center gap-3 text-[9px] font-black">
+                    <span class="inline-flex items-center gap-1 text-neutral-600"><span class="w-2.5 h-2.5 rounded-sm bg-[#34435E]"></span>صرف عادي</span>
+                    <span class="inline-flex items-center gap-1 text-orange-700"><span class="w-2.5 h-2.5 rounded-sm bg-[#f59e0b]"></span>صرف استثناء</span>
+                </div>
+            </div>
+            <div class="p-3 md:p-4">
+                <div class="relative h-[300px] md:h-[340px]"><canvas id="decisionMonthlyIssuedChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div class="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
+                <div class="px-4 py-3 border-b border-neutral-200">
+                    <h3 class="text-sm font-black text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-indigo-600 text-lg">apartment</span> إدارات الشركة والأفرع — أعلى 4 صرفاً (12 شهر)</h3>
+                </div>
+                @if (topCompanyBranches.Any())
+                {
+                    <div class="p-3"><div class="relative" style="height:@(Math.Max(260, topCompanyBranches.Count * 36))px"><canvas id="decisionTopCompanyBranchesChart"></canvas></div></div>
+                }
+                else
+                {
+                    <div class="py-12 text-center text-xs text-neutral-500">لا توجد عمليات صرف لإدارات الشركة والأفرع في الشهور الـ 12 الماضية.</div>
+                }
+            </div>
+
+            <div class="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
+                <div class="px-4 py-3 border-b border-neutral-200">
+                    <h3 class="text-sm font-black text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-violet-600 text-lg">account_tree</span> القطاعات والوحدات — أعلى 4 صرفاً (12 شهر)</h3>
+                </div>
+                @if (topSectorsUnits.Any())
+                {
+                    <div class="p-3"><div class="relative" style="height:@(Math.Max(260, topSectorsUnits.Count * 36))px"><canvas id="decisionTopSectorsUnitsChart"></canvas></div></div>
+                }
+                else
+                {
+                    <div class="py-12 text-center text-xs text-neutral-500">لا توجد عمليات صرف للقطاعات والوحدات في الشهور الـ 12 الماضية.</div>
+                }
+            </div>
+        </div>
+    </section>
+
+    <!-- 2. DATA DISPLAY SECTION: خيارات ومؤشرات التحليل والمتابعة -->
+    <section id="decisionAnalyticsDataSection" class="w-full bg-surface-white p-5 rounded-2xl border border-border-light shadow-sm space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-border-light">
+            <div class="flex items-center gap-2.5">
+                <span class="w-10 h-10 rounded-xl bg-[#34435E] text-white flex items-center justify-center shadow-sm">
+                    <span class="material-symbols-outlined text-xl">dataset</span>
+                </span>
+                <div>
+                    <h2 class="text-base md:text-lg font-black text-on-surface">عرض البيانات</h2>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+            </div>
+        </div>
+
+    <!-- Dedicated analytics scope/time workspace. It preserves the normal dashboard filter through hidden fields. -->
+    <form method="get" action="@Context.Request.Path" id="decisionAnalyticsFilterForm" class="rounded-2xl border border-[#34435E]/15 bg-[#f8f9fb] p-4 space-y-4">
+        @if (Model.Filter?.DepartmentID.HasValue == true)
+        {
+            <input type="hidden" name="DepartmentID" value="@Model.Filter.DepartmentID.Value" />
+        }
+        @if (Model.Filter?.SelectedDepartmentIDs != null)
+        {
+            @foreach (var selectedId in Model.Filter.SelectedDepartmentIDs)
+            {
+                <input type="hidden" name="SelectedDepartmentIDs" value="@selectedId" />
+            }
+        }
+        @if (Model.Filter?.PaperTypeID.HasValue == true)
+        {
+            <input type="hidden" name="PaperTypeID" value="@Model.Filter.PaperTypeID.Value" />
+        }
+        @if (Model.Filter?.FromDate.HasValue == true)
+        {
+            <input type="hidden" name="FromDate" value="@Model.Filter.FromDate.Value.ToString("yyyy-MM-dd")" />
+        }
+        @if (Model.Filter?.ToDate.HasValue == true)
+        {
+            <input type="hidden" name="ToDate" value="@Model.Filter.ToDate.Value.ToString("yyyy-MM-dd")" />
+        }
+
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div>
+                <p class="text-xs font-black text-[#34435E] flex items-center gap-1.5"><span class="material-symbols-outlined text-base">filter_alt</span> خيارات التحليل</p>
+            </div>
+            <div class="flex flex-wrap gap-1.5 text-[9px] font-black items-center">
+                <span id="decisionAnalyticsLoading" class="hidden rounded-full bg-primary/10 border border-primary/20 px-2.5 py-1 text-primary inline-flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[13px] animate-spin">progress_activity</span> جاري تحديث التحليل...
+                </span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.42fr)_minmax(0,1.42fr)_minmax(240px,0.70fr)] gap-3 items-stretch">
+            <div class="rounded-xl border border-neutral-200 bg-white p-3 flex flex-col justify-center gap-3">
+                <div class="flex items-center justify-between gap-2">
+                    <p class="text-[11px] font-black text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-primary text-base">domain</span> الجهات</p>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 items-center">
+                    @foreach (var scopeOption in new[] {
+                        new { Value = "all", Label = "كل الجهات", Icon = "public" },
+                        new { Value = "group1", Label = "الإدارات والأفرع", Icon = "account_tree" },
+                        new { Value = "group2", Label = "القطاعات والوحدات", Icon = "hub" },
+                        new { Value = "custom", Label = "اختيار يدوي", Icon = "checklist" }
+                    })
+                    {
+                        var active = Model.AnalyticsScope == scopeOption.Value;
+                        <label class="analytics-scope-option cursor-pointer rounded-xl border px-3 py-2.5 flex items-center justify-center text-center gap-1.5 transition-all @(active ? "border-[#34435E] bg-[#34435E] text-white shadow-sm" : "border-neutral-200 bg-neutral-50 text-neutral-700 hover:border-[#34435E]/40")">
+                            <input type="radio" name="analyticsScope" value="@scopeOption.Value" class="sr-only" @(active ? "checked" : "") onchange="decisionAnalyticsScopeChanged()" />
+                            <span class="material-symbols-outlined text-base">@scopeOption.Icon</span>
+                            <span class="text-[10px] font-black">@scopeOption.Label</span>
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-neutral-200 bg-white p-3 flex flex-col justify-center gap-3">
+                <div class="flex items-center justify-between gap-2">
+                    <p class="text-[11px] font-black text-on-surface flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-primary text-base">calendar_month</span>
+                        الفترة الزمنية (من تاريخ — إلى تاريخ)
+                    </p>
+                    <div class="flex items-center gap-2">
+                        <input type="hidden" name="analyticsPeriod" value="@(Model.AnalyticsPeriod == "custom" && !string.IsNullOrEmpty(defaultFrom) && !string.IsNullOrEmpty(defaultTo) ? "custom" : "12m")" />
+                        <button type="button" onclick="resetDecisionAnalytics(event)"
+                                class="rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-700 px-2.5 py-1.5 text-[9px] font-black flex items-center gap-1 transition-all"
+                                title="إعادة ضبط خيارات التحليل">
+                            <span class="material-symbols-outlined text-sm">restart_alt</span>
+                            إعادة ضبط
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-[10px] font-black text-neutral-600 mb-1 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-xs text-primary">event</span>
+                            من تاريخ
+                        </label>
+                        <input type="text"
+                               id="decisionAnalyticsFromDate"
+                               name="analyticsFromDate"
+                               value="@defaultFrom"
+                               data-current="@defaultFrom"
+                               data-reset="@resetFrom"
+                               placeholder="اختر تاريخ البداية"
+                               autocomplete="off"
+                               readonly
+                               class="w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white focus:bg-white text-xs font-bold text-neutral-800 transition-all cursor-pointer" />
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-neutral-600 mb-1 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-xs text-primary">event_available</span>
+                            إلى تاريخ
+                        </label>
+                        <input type="text"
+                               id="decisionAnalyticsToDate"
+                               name="analyticsToDate"
+                               value="@defaultTo"
+                               data-current="@defaultTo"
+                               data-reset="@resetTo"
+                               placeholder="اختر تاريخ النهاية"
+                               autocomplete="off"
+                               readonly
+                               class="w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white focus:bg-white text-xs font-bold text-neutral-800 transition-all cursor-pointer" />
+                    </div>
+                </div>
+            </div>
+        <div class="min-w-0 rounded-xl border border-neutral-200 bg-white p-3 flex flex-col justify-center gap-3 lg:col-span-2 xl:col-span-1">
+            <label class="block text-center text-[11px] font-black text-on-surface">نوع الورق</label>
+            <div class="flex flex-wrap items-center justify-center gap-2 w-full">
+                <label class="analytics-paper-option cursor-pointer rounded-lg border px-2 py-1.5 @(!Model.AnalyticsPaperTypeID.HasValue ? "border-[#34435E] bg-[#34435E] text-white" : "border-neutral-200 bg-white text-neutral-700")">
+                    <input type="radio" name="analyticsPaperTypeID" value="" class="sr-only" @(!Model.AnalyticsPaperTypeID.HasValue ? "checked" : "") />
+                    <span class="text-xs font-black">كل الأنواع</span>
+                </label>
+                @foreach (var paper in paperTypes)
+                {
+                    var activePaper = Model.AnalyticsPaperTypeID?.ToString() == paper.Value;
+                    <label class="analytics-paper-option cursor-pointer rounded-lg border px-2 py-1.5 @(activePaper ? "border-[#34435E] bg-[#34435E] text-white" : "border-neutral-200 bg-white text-neutral-700")">
+                        <input type="radio" name="analyticsPaperTypeID" value="@paper.Value" class="sr-only" @(activePaper ? "checked" : "") />
+                        <span class="text-xs font-black">@paper.Text</span>
+                    </label>
+                }
+            </div>
+        </div>
+
+        </div>
+
+        <div id="decisionAnalyticsCustomDeptPanel" class="@(Model.AnalyticsScope == "custom" ? "" : "hidden") rounded-xl border border-neutral-200 bg-white p-3 space-y-3">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div class="relative flex-1">
+                    <span class="material-symbols-outlined absolute right-3 top-2.5 text-neutral-400 text-base">search</span>
+                    <input id="decisionAnalyticsDeptSearch" type="text" placeholder="ابحث باسم الجهة أو رقمها..." oninput="filterDecisionAnalyticsDepartments()"
+                           class="w-full rounded-xl border border-neutral-200 bg-neutral-50 pr-9 pl-3 py-2 text-[10px] font-bold outline-none focus:border-primary focus:bg-white" />
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="setDecisionAnalyticsVisibleDepartments(true)" class="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-[9px] font-black text-primary hover:bg-primary/5">تحديد الظاهر</button>
+                    <button type="button" onclick="setDecisionAnalyticsVisibleDepartments(false)" class="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-[9px] font-black text-red-600 hover:bg-red-50">إلغاء الظاهر</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1" id="decisionAnalyticsDepartmentList">
+                <div class="rounded-xl border border-neutral-200 p-2.5 space-y-1">
+                    <p class="text-[9px] font-black text-primary px-1 pb-1 border-b border-neutral-100">إدارات الشركة والأفرع</p>
+                    @foreach (var dept in group1Depts)
+                    {
+                        var deptId = int.Parse(dept.Value);
+                        <label class="decision-analytics-dept-row flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-neutral-50 cursor-pointer" data-search="@($"{dept.Text} {dept.Value}".ToLowerInvariant())">
+                            <input type="checkbox" name="analyticsDepartmentIDs" value="@deptId" @(selectedAnalyticsIds.Contains(deptId) ? "checked" : "") class="w-4 h-4 rounded border-neutral-300 text-primary focus:ring-primary" />
+                            <span class="text-[10px] font-bold text-neutral-700 flex-1">@dept.Text</span>
+                            <span class="text-[8px] font-black text-neutral-400">#@dept.Value</span>
+                        </label>
+                    }
+                </div>
+                <div class="rounded-xl border border-neutral-200 p-2.5 space-y-1">
+                    <p class="text-[9px] font-black text-primary px-1 pb-1 border-b border-neutral-100">القطاعات والوحدات</p>
+                    @foreach (var dept in group2Depts)
+                    {
+                        var deptId = int.Parse(dept.Value);
+                        <label class="decision-analytics-dept-row flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-neutral-50 cursor-pointer" data-search="@($"{dept.Text} {dept.Value}".ToLowerInvariant())">
+                            <input type="checkbox" name="analyticsDepartmentIDs" value="@deptId" @(selectedAnalyticsIds.Contains(deptId) ? "checked" : "") class="w-4 h-4 rounded border-neutral-300 text-primary focus:ring-primary" />
+                            <span class="text-[10px] font-bold text-neutral-700 flex-1">@dept.Text</span>
+                            <span class="text-[8px] font-black text-neutral-400">#@dept.Value</span>
+                        </label>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* <div class="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-3 items-end">
+            <div>
+                <label class="block text-[10px] font-black text-neutral-600 mb-1.5">نوع الورق</label>
+                <div class="flex flex-wrap gap-1.5">
+                    <label class="analytics-paper-option cursor-pointer rounded-lg border px-3 py-2 transition-all @(!Model.AnalyticsPaperTypeID.HasValue ? "border-[#34435E] bg-[#34435E] text-white" : "border-neutral-200 bg-white text-neutral-700")">
+                        <input type="radio" name="analyticsPaperTypeID" value="" class="sr-only" @(!Model.AnalyticsPaperTypeID.HasValue ? "checked" : "") />
+                        <span class="text-[9px] font-black">كل الأنواع</span>
+                    </label>
+                    @foreach (var paper in paperTypes)
+                    {
+                        var isPaperActive = Model.AnalyticsPaperTypeID?.ToString() == paper.Value;
+                        <label class="analytics-paper-option cursor-pointer rounded-lg border px-3 py-2 transition-all @(isPaperActive ? "border-[#34435E] bg-[#34435E] text-white" : "border-neutral-200 bg-white text-neutral-700")">
+                            <input type="radio" name="analyticsPaperTypeID" value="@paper.Value" class="sr-only" @(isPaperActive ? "checked" : "") />
+                            <span class="text-[9px] font-black">@paper.Text</span>
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 justify-end">
+                <button type="button" onclick="resetDecisionAnalytics()" class="rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-600 px-3 py-2.5 text-[10px] font-black flex items-center gap-1">
+                    <span class="material-symbols-outlined text-base">restart_alt</span> الإعدادات الافتراضية
+                </button>
+            </div>
+        </div> 
+
+        <div class="rounded-xl bg-[#34435E] text-white px-3.5 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div class="flex items-center gap-2 text-[10px] font-black">
+                <span class="material-symbols-outlined text-base text-[#8dd8df]">visibility</span>
+                <span>أنت ترى الآن: @scopeLabel • @paperLabel • @periodLabel</span>
+            </div>
+        </div>*@
+
+    </form>
+
+    <div class="grid grid-cols-2 lg:grid-cols-6 gap-2.5">
+        <div class="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+            <p class="text-[9px] font-bold text-neutral-500">طلبات مقدمة ضمن الفترة</p>
+            <p class="text-xl font-black text-[#34435E] mt-1">@analyticsRequests.Count</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+            <p class="text-[9px] font-bold text-emerald-700">المصروف</p>
+            <p class="text-xl font-black text-emerald-700 mt-1">@filteredNormalIssuedQty <span class="text-[9px] font-bold">@QuantityHelper.RezmaUnit(filteredNormalIssuedQty)</span></p>
+        </div>
+        <div class="rounded-xl border border-orange-200 bg-orange-50/70 p-3">
+            <p class="text-[9px] font-bold text-orange-700">المصروف استثناء</p>
+            <p class="text-xl font-black text-orange-600 mt-1">@filteredExceptionIssuedQty <span class="text-[9px] font-bold">@QuantityHelper.RezmaUnit(filteredExceptionIssuedQty)</span></p>
+        </div>
+        <div class="rounded-xl border border-orange-200 bg-white p-3">
+            <p class="text-[9px] font-bold text-neutral-500">نسبة طلبات الاستثناء المقدمة</p>
+            <p class="text-xl font-black text-orange-600 mt-1">@filteredExceptionRate%</p>
+        </div>
+        <div class="rounded-xl border border-red-200 bg-red-50/60 p-3">
+            <p class="text-[9px] font-bold text-red-700">طلبات مرفوضة</p>
+            <p class="text-xl font-black text-red-700 mt-1">@filteredRejectedCount <span class="text-[9px] font-bold">طلب</span></p>
+        </div>
+        <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 col-span-2 lg:col-span-1">
+            <p class="text-[9px] font-bold text-amber-700">إعادة مراجعة حالياً</p>
+            <p class="text-xl font-black text-amber-700 mt-1">@filteredReReviewCount <span class="text-[9px] font-bold">طلب</span></p>
+        </div>
+    </section>
+</div>
+
+
+<script>
+    (function () {
+        var analyticsStorageKey = 'paperManagementDecisionAnalyticsV9';
+        var analyticsApplyTimer = null;
+        var analyticsFetchController = null;
+        var analyticsRestoreAttempted = false;
+        var chartInitAttempts = 0;
+        var decisionAnalyticsFromPicker = null;
+        var decisionAnalyticsToPicker = null;
+
+        function getAnalyticsForm() {
+            return document.getElementById('decisionAnalyticsFilterForm');
+        }
+
+        function refreshAnalyticsOptionStyles() {
+            document.querySelectorAll('.analytics-scope-option').forEach(function (label) {
+                var input = label.querySelector('input[type="radio"]');
+                var active = input && input.checked;
+                label.classList.toggle('border-[#34435E]', active);
+                label.classList.toggle('bg-[#34435E]', active);
+                label.classList.toggle('text-white', active);
+                label.classList.toggle('shadow-sm', active);
+                label.classList.toggle('border-neutral-200', !active);
+                label.classList.toggle('bg-neutral-50', !active);
+                label.classList.toggle('text-neutral-700', !active);
+            });
+
+            document.querySelectorAll('.analytics-paper-option').forEach(function (label) {
+                var input = label.querySelector('input[type="radio"]');
+                var active = input && input.checked;
+                label.classList.toggle('border-[#34435E]', active);
+                label.classList.toggle('bg-[#34435E]', active);
+                label.classList.toggle('text-white', active);
+                label.classList.toggle('border-neutral-200', !active);
+                label.classList.toggle('bg-white', !active);
+                label.classList.toggle('text-neutral-700', !active);
+            });
+        }
+
+        function initializeDecisionAnalyticsDatePickers() {
+            if (typeof flatpickr !== 'function') return;
+
+            var fromInput = document.getElementById('decisionAnalyticsFromDate');
+            var toInput = document.getElementById('decisionAnalyticsToDate');
+            if (!fromInput || !toInput) return;
+
+            try { if (decisionAnalyticsFromPicker) decisionAnalyticsFromPicker.destroy(); } catch (e) { }
+            try { if (decisionAnalyticsToPicker) decisionAnalyticsToPicker.destroy(); } catch (e) { }
+
+            decisionAnalyticsFromPicker = flatpickr(fromInput, {
+                locale: 'ar',
+                dateFormat: 'Y-m-d',
+                altInput: true,
+                altFormat: 'd/m/Y',
+                altInputClass: 'w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white focus:bg-white text-xs font-bold text-neutral-800 transition-all cursor-pointer',
+                defaultDate: fromInput.value || null,
+                maxDate: toInput.value || 'today',
+                disableMobile: true,
+                allowInput: false,
+                onChange: function (selectedDates, dateStr) {
+                    if (decisionAnalyticsToPicker && dateStr) decisionAnalyticsToPicker.set('minDate', dateStr);
+                    if (customPeriodIsReady()) scheduleAnalyticsApply(80);
+                }
+            });
+
+            decisionAnalyticsToPicker = flatpickr(toInput, {
+                locale: 'ar',
+                dateFormat: 'Y-m-d',
+                altInput: true,
+                altFormat: 'd/m/Y',
+                altInputClass: 'w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white focus:bg-white text-xs font-bold text-neutral-800 transition-all cursor-pointer',
+                defaultDate: toInput.value || null,
+                minDate: fromInput.value || null,
+                maxDate: 'today',
+                disableMobile: true,
+                allowInput: false,
+                onChange: function (selectedDates, dateStr) {
+                    if (decisionAnalyticsFromPicker && dateStr) decisionAnalyticsFromPicker.set('maxDate', dateStr);
+                    if (customPeriodIsReady()) scheduleAnalyticsApply(80);
+                }
+            });
+        }
+
+        function customScopeIsReady() {
+            var form = getAnalyticsForm();
+            if (!form) return false;
+            var selectedScope = form.querySelector('input[name="analyticsScope"]:checked');
+            if (!selectedScope || selectedScope.value !== 'custom') return true;
+            return !!form.querySelector('input[name="analyticsDepartmentIDs"]:checked');
+        }
+
+        function customPeriodIsReady() {
+            var form = getAnalyticsForm();
+            if (!form) return false;
+            var from = form.querySelector('input[name="analyticsFromDate"]');
+            var to = form.querySelector('input[name="analyticsToDate"]');
+            return !!(from && from.value && to && to.value);
+        }
+
+        window.decisionAnalyticsScopeChanged = function () {
+            var form = getAnalyticsForm();
+            if (!form) return;
+            var custom = form.querySelector('input[name="analyticsScope"][value="custom"]');
+            var panel = document.getElementById('decisionAnalyticsCustomDeptPanel');
+            if (panel) panel.classList.toggle('hidden', !(custom && custom.checked));
+            refreshAnalyticsOptionStyles();
+        };
+
+        window.decisionAnalyticsPeriodChanged = function () {
+            refreshAnalyticsOptionStyles();
+        };
+
+        window.filterDecisionAnalyticsDepartments = function () {
+            var input = document.getElementById('decisionAnalyticsDeptSearch');
+            var term = typeof normalizeArabicSearch === 'function'
+                ? normalizeArabicSearch(input ? input.value : '')
+                : (input ? input.value.toLowerCase() : '');
+
+            document.querySelectorAll('.decision-analytics-dept-row').forEach(function (row) {
+                var raw = row.getAttribute('data-search') || '';
+                var haystack = typeof normalizeArabicSearch === 'function' ? normalizeArabicSearch(raw) : raw.toLowerCase();
+                row.style.display = !term || haystack.indexOf(term) !== -1 ? '' : 'none';
+            });
+        };
+
+        function scheduleAnalyticsApply(delay) {
+            window.clearTimeout(analyticsApplyTimer);
+            var form = getAnalyticsForm();
+            var periodInput = form ? form.querySelector('input[name="analyticsPeriod"]') : null;
+            if(periodInput)periodInput.value=customPeriodIsReady()?'custom':'12m';
+            var needsCustomDates = periodInput && periodInput.value === 'custom';
+            if (!customScopeIsReady() || (needsCustomDates && !customPeriodIsReady())) return;
+            analyticsApplyTimer = window.setTimeout(function () {
+                window.applyDecisionAnalyticsFilters();
+            }, typeof delay === 'number' ? delay : 220);
+        }
+
+        window.setDecisionAnalyticsVisibleDepartments = function (checked) {
+            document.querySelectorAll('.decision-analytics-dept-row').forEach(function (row) {
+                if (row.style.display === 'none') return;
+                var cb = row.querySelector('input[type="checkbox"]');
+                if (cb) cb.checked = checked;
+            });
+            scheduleAnalyticsApply(120);
+        };
+
+        function saveDecisionAnalyticsState() {
+            try {
+                var form = getAnalyticsForm();
+                if (!form) return;
+                var scope = form.querySelector('input[name="analyticsScope"]:checked');
+                var paper = form.querySelector('input[name="analyticsPaperTypeID"]:checked');
+                var selected = Array.prototype.slice.call(form.querySelectorAll('input[name="analyticsDepartmentIDs"]:checked'))
+                    .map(function (cb) { return cb.value; });
+                var from = form.querySelector('input[name="analyticsFromDate"]');
+                var to = form.querySelector('input[name="analyticsToDate"]');
+
+                localStorage.setItem(analyticsStorageKey, JSON.stringify({
+                    scope: scope ? scope.value : 'all',
+                    period: form.querySelector('input[name="analyticsPeriod"]')?.value || '12m',
+                    paper: paper ? paper.value : '',
+                    departments: selected,
+                    from: from ? from.value : '',
+                    to: to ? to.value : ''
+                }));
+            } catch (e) { }
+        }
+
+        function setAnalyticsLoading(isLoading) {
+            var indicator = document.getElementById('decisionAnalyticsLoading');
+            if (indicator) indicator.classList.toggle('hidden', !isLoading);
+            var section = document.getElementById('decisionAnalyticsCenter');
+            if (section) {
+                section.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+            }
+        }
+
+        function buildAnalyticsRequestUrl() {
+            var form = getAnalyticsForm();
+            if (!form) return null;
+
+            var action = form.getAttribute('action') || window.location.pathname;
+            var url = new URL(action, window.location.origin);
+            url.hash = '';
+            var params = new URLSearchParams();
+            new FormData(form).forEach(function (value, key) {
+                params.append(key, value);
+            });
+            url.search = params.toString();
+            return url;
+        }
+
+        function destroyDecisionAnalyticsCharts() {
+            if (!Array.isArray(window.__decisionAnalyticsCharts)) {
+                window.__decisionAnalyticsCharts = [];
+                return;
+            }
+            window.__decisionAnalyticsCharts.forEach(function (chart) {
+                try { chart.destroy(); } catch (e) { }
+            });
+            window.__decisionAnalyticsCharts = [];
+        }
+
+        function parseChartData() {
+            var dataNode = document.getElementById('decisionAnalyticsChartData');
+            if (!dataNode) return {};
+            try {
+                return JSON.parse(dataNode.textContent || '{}');
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function quantityText(value) {
+            var n = Number(value || 0);
+            if (typeof rezmaText === 'function') return rezmaText(n);
+            return n.toLocaleString('en-US') + (n === 1 ? ' رزمة' : ' رزم');
+        }
+
+        function baseLegend() {
+            return {
+                position: 'top',
+                rtl: true,
+                labels: {
+                    usePointStyle: true,
+                    boxWidth: 8,
+                    padding: 14,
+                    font: { family: 'Cairo', size: 10, weight: 'bold' }
+                }
+            };
+        }
+
+        function baseTooltip(isQuantity) {
+            return {
+                rtl: true,
+                titleFont: { family: 'Cairo', weight: 'bold' },
+                bodyFont: { family: 'Cairo' },
+                callbacks: {
+                    label: function (ctx) {
+                        var value = ctx.raw || 0;
+                        return ' ' + ctx.dataset.label + ': ' + (isQuantity ? quantityText(value) : Number(value).toLocaleString('en-US') + ' طلب');
+                    }
+                }
+            };
+        }
+
+        function initDecisionAnalyticsCharts() {
+            if (window.__decisionAnalyticsCharts && window.__decisionAnalyticsCharts.length > 0) {
+                return;
+            }
+            if (typeof Chart === 'undefined') {
+                if (chartInitAttempts++ < 25) {
+                    window.setTimeout(initDecisionAnalyticsCharts, 120);
+                }
+                return;
+            }
+            chartInitAttempts = 0;
+            window.__decisionAnalyticsCharts = [];
+
+            Chart.defaults.font.family = 'Cairo';
+            Chart.defaults.locale = 'en-US';
+
+            var data = parseChartData();
+            var timelineLabels = data.timelineLabels || [];
+            var timelineNormalIssued = data.timelineNormalIssued || [];
+            var timelineExceptionIssued = data.timelineExceptionIssued || [];
+            var topCompanyLabels = data.topCompanyLabels || [];
+            var topCompanyNormal = data.topCompanyNormal || [];
+            var topCompanyException = data.topCompanyException || [];
+            var topSectorLabels = data.topSectorLabels || [];
+            var topSectorNormal = data.topSectorNormal || [];
+            var topSectorException = data.topSectorException || [];
+
+            var monthlyCanvas = document.getElementById('decisionMonthlyIssuedChart');
+            if (monthlyCanvas) {
+                window.__decisionAnalyticsCharts.push(new Chart(monthlyCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: timelineLabels,
+                        datasets: [
+                            { label: 'صرف عادي', data: timelineNormalIssued, backgroundColor: '#34435E', borderRadius: 6, borderSkipped: false, stack: 'issued' },
+                            { label: 'صرف استثناء', data: timelineExceptionIssued, backgroundColor: '#f59e0b', borderRadius: 6, borderSkipped: false, stack: 'issued' }
+                        ]
+                    },
+                    options: {
+                        locale: 'en-US',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        scales: {
+                            x: { stacked: true, grid: { display: false }, ticks: { autoSkip: true, maxRotation: 0, font: { family: 'Cairo', size: 9, weight: 'bold' } } },
+                            y: { stacked: true, beginAtZero: true, grid: { color: '#eef1f4' }, ticks: { precision: 0, font: { family: 'Cairo', size: 10 } } }
+                        },
+                        plugins: { legend: baseLegend(), tooltip: baseTooltip(true) }
+                    }
+                }));
+            }
+
+            function buildTopIssuedChart(canvasId, labels, normalData, exceptionData) {
+                var canvas = document.getElementById(canvasId);
+                if (!canvas) return;
+                window.__decisionAnalyticsCharts.push(new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            { label: 'صرف عادي', data: normalData, backgroundColor: '#34435E', borderRadius: 5, borderSkipped: false, stack: 'issued' },
+                            { label: 'صرف استثناء', data: exceptionData, backgroundColor: '#f59e0b', borderRadius: 5, borderSkipped: false, stack: 'issued' }
+                        ]
+                    },
+                    options: {
+                        locale: 'en-US', responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                        scales: {
+                            x: { stacked: true, beginAtZero: true, grid: { color: '#eef1f4' }, ticks: { precision: 0, font: { family: 'Cairo', size: 9 } } },
+                            y: { stacked: true, grid: { display: false }, ticks: { autoSkip: false, font: { family: 'Cairo', size: 10, weight: 'bold' } } }
+                        },
+                        plugins: { legend: baseLegend(), tooltip: baseTooltip(true) }
+                    }
+                }));
+            }
+
+            buildTopIssuedChart('decisionTopCompanyBranchesChart', topCompanyLabels, topCompanyNormal, topCompanyException);
+            buildTopIssuedChart('decisionTopSectorsUnitsChart', topSectorLabels, topSectorNormal, topSectorException);
+        }
+
+        window.applyDecisionAnalyticsFilters = async function () {
+            var form = getAnalyticsForm();
+            var periodInput = form ? form.querySelector('input[name="analyticsPeriod"]') : null;
+            if(periodInput)periodInput.value=customPeriodIsReady()?'custom':'12m';
+            var needsCustomDates = periodInput && periodInput.value === 'custom';
+            if (!customScopeIsReady() || (needsCustomDates && !customPeriodIsReady())) return;
+
+            var requestUrl = buildAnalyticsRequestUrl();
+            if (!requestUrl) return;
+
+            saveDecisionAnalyticsState();
+            setAnalyticsLoading(true);
+
+            // Keep the dashboard exactly where the user is while the filtered card refreshes.
+            var preservedScrollX = window.scrollX || window.pageXOffset || 0;
+            var preservedScrollY = window.scrollY || window.pageYOffset || 0;
+
+            var searchBox = document.getElementById('decisionAnalyticsDeptSearch');
+            var searchValue = searchBox ? searchBox.value : '';
+            var deptList = document.getElementById('decisionAnalyticsDepartmentList');
+            var deptListScrollTop = deptList ? deptList.scrollTop : 0;
+
+            if (analyticsFetchController) {
+                try { analyticsFetchController.abort(); } catch (e) { }
+            }
+            analyticsFetchController = new AbortController();
+
+            try {
+                var response = await fetch(requestUrl.toString(), {
+                    method: 'GET',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    signal: analyticsFetchController.signal,
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) throw new Error('Analytics refresh failed: ' + response.status);
+
+                var html = await response.text();
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var incomingSection = doc.getElementById('decisionAnalyticsDataSection');
+                var currentSection = document.getElementById('decisionAnalyticsDataSection');
+                if (!incomingSection || !currentSection) throw new Error('Analytics data display section was not found.');
+
+                currentSection.replaceWith(incomingSection);
+
+                initializeDecisionAnalyticsDataSection();
+
+                var newSearchBox = document.getElementById('decisionAnalyticsDeptSearch');
+                if (newSearchBox && searchValue) {
+                    newSearchBox.value = searchValue;
+                    filterDecisionAnalyticsDepartments();
+                }
+                var newDeptList = document.getElementById('decisionAnalyticsDepartmentList');
+                if (newDeptList) newDeptList.scrollTop = deptListScrollTop;
+
+                requestAnimationFrame(function () {
+                    window.scrollTo({ left: preservedScrollX, top: preservedScrollY, behavior: 'auto' });
+                });
+            } catch (error) {
+                if (error && error.name === 'AbortError') return;
+                console.error(error);
+                setAnalyticsLoading(false);
+            }
+        };
+
+        window.resetDecisionAnalytics = function (event) {
+            if (event && typeof event.preventDefault === 'function') event.preventDefault();
+
+            var form = getAnalyticsForm();
+            if (!form) return;
+
+            var allScope = form.querySelector('input[name="analyticsScope"][value="all"]');
+            var allPaper = form.querySelector('input[name="analyticsPaperTypeID"][value=""]');
+            if (allScope) allScope.checked = true;
+            if (allPaper) allPaper.checked = true;
+            form.querySelectorAll('input[name="analyticsDepartmentIDs"]').forEach(function (cb) { cb.checked = false; });
+
+            var from = form.querySelector('input[name="analyticsFromDate"]');
+            var to = form.querySelector('input[name="analyticsToDate"]');
+            var periodInput = form.querySelector('input[name="analyticsPeriod"]');
+
+            // Reset means: clear the custom dates completely so the fields return to
+            // "اختر تاريخ البداية" / "اختر تاريخ النهاية".
+            if (decisionAnalyticsFromPicker) {
+                decisionAnalyticsFromPicker.clear(false);
+                decisionAnalyticsFromPicker.set('maxDate', 'today');
+            } else if (from) {
+                from.value = '';
+            }
+
+            if (decisionAnalyticsToPicker) {
+                decisionAnalyticsToPicker.clear(false);
+                decisionAnalyticsToPicker.set('minDate', null);
+                decisionAnalyticsToPicker.set('maxDate', 'today');
+            } else if (to) {
+                to.value = '';
+            }
+
+            // Refresh the cards using the normal 12-month default, while keeping the
+            // custom date inputs blank for the next explicit user selection.
+            if (periodInput) periodInput.value = '12m';
+
+            try { localStorage.removeItem(analyticsStorageKey); } catch (e) { }
+            decisionAnalyticsScopeChanged();
+            decisionAnalyticsPeriodChanged();
+            refreshAnalyticsOptionStyles();
+
+            // AJAX only: no page refresh and no jump to the top.
+            window.applyDecisionAnalyticsFilters();
+        };
+
+        function attachInstantAnalyticsEvents() {
+            var form = getAnalyticsForm();
+            if (!form) return;
+
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                window.applyDecisionAnalyticsFilters();
+            });
+
+            form.querySelectorAll('input[name="analyticsScope"]').forEach(function (input) {
+                input.addEventListener('change', function () {
+                    decisionAnalyticsScopeChanged();
+                    if (input.value === 'custom' && !customScopeIsReady()) return;
+                    scheduleAnalyticsApply(80);
+                });
+            });
+
+            form.querySelectorAll('input[name="analyticsPaperTypeID"]').forEach(function (input) {
+                input.addEventListener('change', function () {
+                    refreshAnalyticsOptionStyles();
+                    scheduleAnalyticsApply(80);
+                });
+            });
+
+            form.querySelectorAll('input[name="analyticsDepartmentIDs"]').forEach(function (input) {
+                input.addEventListener('change', function () {
+                    scheduleAnalyticsApply(260);
+                });
+            });
+
+            // Flatpickr applies instantly through onChange. Keep this only as a fallback.
+            if (typeof flatpickr !== 'function') {
+                form.querySelectorAll('input[name="analyticsFromDate"], input[name="analyticsToDate"]').forEach(function (input) {
+                    input.addEventListener('change', function () {
+                        if (customPeriodIsReady()) scheduleAnalyticsApply(80);
+                    });
+                });
+            }
+        }
+
+        function restoreDecisionAnalyticsStateIfNeeded() {
+            if (analyticsRestoreAttempted) return;
+            analyticsRestoreAttempted = true;
+
+            try {
+                var params = new URLSearchParams(window.location.search || '');
+                if (params.has('analyticsPeriod') || params.has('analyticsScope') || params.has('analyticsPaperTypeID') || params.has('analyticsDepartmentIDs') || params.has('analyticsFromDate') || params.has('analyticsToDate')) return;
+
+                var raw = localStorage.getItem(analyticsStorageKey);
+                if (!raw) return;
+                var state = JSON.parse(raw);
+                if (!state) return;
+                if (state.scope === 'all' && !state.paper && (!state.departments || !state.departments.length)) return;
+
+                var form = getAnalyticsForm();
+                if (!form) return;
+                var scope = form.querySelector('input[name="analyticsScope"][value="' + (state.scope || 'all') + '"]');
+                var paper = form.querySelector('input[name="analyticsPaperTypeID"][value="' + (state.paper || '') + '"]');
+                if (scope) scope.checked = true;
+                if (paper) paper.checked = true;
+
+                form.querySelectorAll('input[name="analyticsDepartmentIDs"]').forEach(function (cb) {
+                    cb.checked = Array.isArray(state.departments) && state.departments.indexOf(cb.value) !== -1;
+                });
+
+                // Do not restore old custom dates from localStorage. A fresh visit should
+                // always show the two date placeholders until the user explicitly chooses them.
+                decisionAnalyticsScopeChanged();
+                decisionAnalyticsPeriodChanged();
+            } catch (e) { }
+        }
+
+        window.initializeDecisionAnalyticsDataSection = function () {
+            refreshAnalyticsOptionStyles();
+            decisionAnalyticsScopeChanged();
+            decisionAnalyticsPeriodChanged();
+            initializeDecisionAnalyticsDatePickers();
+            attachInstantAnalyticsEvents();
+            setAnalyticsLoading(false);
+        };
+
+        window.initializeDecisionAnalyticsSection = function () {
+            initializeDecisionAnalyticsDataSection();
+            initDecisionAnalyticsCharts();
+        };
+
+        function firstInitialize() {
+            initializeDecisionAnalyticsSection();
+            restoreDecisionAnalyticsStateIfNeeded();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', firstInitialize, { once: true });
+        } else {
+            firstInitialize();
+        }
+    })();
+</script>

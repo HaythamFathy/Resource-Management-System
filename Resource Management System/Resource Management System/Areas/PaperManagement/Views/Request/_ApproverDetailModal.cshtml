@@ -1,0 +1,9 @@
+@model Resource_Management_System.Models.RequestItemViewModel
+@{
+    var viewData = new ViewDataDictionary(ViewData);
+    if (!viewData.ContainsKey("ModalMode"))
+    {
+        viewData["ModalMode"] = "Approver";
+    }
+}
+@await Html.PartialAsync("_RequestDetailModal", Model, viewData)

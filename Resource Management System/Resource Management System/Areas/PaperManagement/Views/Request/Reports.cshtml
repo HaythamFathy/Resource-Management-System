@@ -1,0 +1,611 @@
+@model Resource_Management_System.Models.UsageReportViewModel
+@{
+    ViewData["Title"] = "تقرير استهلاك الورق";
+    var from = Model.Filter.FromDate?.ToString("yyyy-MM-dd") ?? "";
+    var to = Model.Filter.ToDate?.ToString("yyyy-MM-dd") ?? "";
+}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr@4.6.13/dist/l10n/ar.js"></script>
+<div class="space-y-6">
+    <!-- Header / Actions -->
+    <div class="flex flex-wrap justify-between items-center gap-3 no-print">
+        <div>
+            <h2 class="text-2xl font-extrabold text-on-surface">تقرير إدارة استهلاك الورق</h2>
+        </div>
+        <div class="flex items-center gap-2 no-print">
+            <button type="button" onclick="window.print()" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm">
+                <span class="material-symbols-outlined text-lg">print</span>
+                <span>طباعة التقرير</span>
+            </button>
+            <button type="button" onclick="exportToExcel()" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm">
+                <span class="material-symbols-outlined text-lg">file_download</span>
+                <span>تصدير إلى Excel</span>
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(ViewBag.ErrorMessage) || TempData["ErrorMessage"] != null)
+    {
+        <div class="bg-red-50 border border-red-300 text-red-800 p-4 rounded-xl text-sm font-bold">
+            @(ViewBag.ErrorMessage ?? TempData["ErrorMessage"])
+        </div>
+    }
+
+    @{
+        var allDepts = Model.Filter.Departments?.ToList() ?? new List<SelectListItem>();
+        var selectedIds = Model.Filter.SelectedDepartmentIDs ?? new List<int>();
+        var hasSelection = selectedIds.Any();
+
+        var g1Depts = allDepts.Where(d => int.TryParse(d.Value, out var id) && id <= 24).ToList();
+        var g2Depts = allDepts.Where(d => int.TryParse(d.Value, out var id) && id > 24).ToList();
+    }
+
+    <!-- Redesigned Filter Bar with Checklist -->
+    <div class="bg-surface-white border border-border-light rounded-2xl p-5 shadow-sm space-y-4 no-print">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border-light">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                    <span class="material-symbols-outlined text-lg">tune</span>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm text-on-surface">معايير تصفية وفلترة التقرير</h3>
+                </div>
+            </div>
+
+            <!-- Quick Date Presets -->
+            <div class="flex items-center gap-1.5 bg-neutral-100 p-1 rounded-xl text-xs font-semibold">
+                <button type="button" onclick="setPreset('today')" class="px-2.5 py-1 rounded-lg hover:bg-white hover:shadow-xs transition-all text-neutral-700">اليوم</button>
+                <button type="button" onclick="setPreset('week')" class="px-2.5 py-1 rounded-lg hover:bg-white hover:shadow-xs transition-all text-neutral-700">هذا الأسبوع</button>
+                <button type="button" onclick="setPreset('month')" class="px-2.5 py-1 rounded-lg hover:bg-white hover:shadow-xs transition-all text-neutral-700">هذا الشهر</button>
+                <button type="button" onclick="setPreset('year')" class="px-2.5 py-1 rounded-lg hover:bg-white hover:shadow-xs transition-all text-neutral-700">هذا العام</button>
+                <button type="button" onclick="setPreset('all')" class="px-2.5 py-1 rounded-lg hover:bg-white hover:shadow-xs transition-all text-neutral-700">كل الفترات</button>
+            </div>
+        </div>
+
+        <form method="get" id="periodForm" data-instant-filter="true" data-auto-filter="true" class="space-y-4">
+            <!-- Main Controls Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                <!-- 1. Checklist Trigger Button -->
+                <div>
+                    <label class="block text-xs font-bold text-on-surface mb-1.5 flex items-center justify-between">
+                        <span class="flex items-center gap-1">
+                            <span class="material-symbols-outlined text-sm text-primary">checklist</span>
+                            <span>تحديد الجهات</span>
+                        </span>
+                        <span id="selectedCountBadge" class="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full"></span>
+                    </label>
+                    <button type="button" onclick="toggleChecklistPanel()" id="checklistTriggerBtn"
+                            class="w-full border border-border-light rounded-xl p-2.5 bg-neutral-50 hover:bg-white text-xs font-bold text-neutral-800 flex items-center justify-between transition-all shadow-xs">
+                        <span class="flex items-center gap-1.5 truncate">
+                            <span class="material-symbols-outlined text-primary text-base">domain</span>
+                            <span id="triggerBtnLabel">تحديد الجهات والأقسام</span>
+                        </span>
+                        <span class="material-symbols-outlined text-neutral-400 text-sm transition-transform duration-300" id="checklistChevron">expand_more</span>
+                    </button>
+                </div>
+
+                <!-- 2. Start Date -->
+                <div>
+                    <label class="block text-xs font-bold text-on-surface mb-1.5 flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-sm text-primary">calendar_today</span>
+                        <span>من تاريخ</span>
+                    </label>
+                    <div class="relative">
+                        <input type="text" id="fromDateInput" name="FromDate" value="@from" placeholder="اختر تاريخ البداية"
+                               class="w-full border border-border-light rounded-xl p-2.5 pr-9 bg-neutral-50 text-xs font-bold focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all" />
+                        <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-base pointer-events-none">calendar_month</span>
+                    </div>
+                </div>
+
+                <!-- 3. End Date -->
+                <div>
+                    <label class="block text-xs font-bold text-on-surface mb-1.5 flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-sm text-primary">event</span>
+                        <span>إلى تاريخ</span>
+                    </label>
+                    <div class="relative">
+                        <input type="text" id="toDateInput" name="ToDate" value="@to" placeholder="اختر تاريخ النهاية"
+                               class="w-full border border-border-light rounded-xl p-2.5 pr-9 bg-neutral-50 text-xs font-bold focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all" />
+                        <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-base pointer-events-none">calendar_month</span>
+                    </div>
+                </div>
+
+                <!-- 4. Action Buttons -->
+                <div class="flex items-center gap-2">
+                    <span class="flex-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold p-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs">
+                        <span class="material-symbols-outlined text-base">bolt</span>
+                        <span>التقرير يتحدث تلقائياً</span>
+                    </span>
+                    <button type="button" onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-2.5 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 text-xs" title="تصدير إلى Excel">
+                        <span class="material-symbols-outlined text-base">file_download</span>
+                        <span>Excel</span>
+                    </button>
+                    <a href="/PaperManagement/Request/Reports" data-instant-filter-reset="true" class="border border-border-light hover:bg-neutral-100 text-neutral-700 font-bold p-2.5 rounded-xl transition-all shadow-xs flex items-center justify-center text-xs" title="إلغاء الفلتر">
+                        <span class="material-symbols-outlined text-base">restart_alt</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Collapsible Dual-Checklist Dropdown Panel -->
+            <div id="checklistPanel" data-instant-preserve-open="true" class="hidden border-2 border-primary/20 bg-neutral-50/60 rounded-2xl p-4 shadow-sm space-y-3 transition-all duration-300">
+                <!-- Search & Quick Selection Controls -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-border-light">
+                    <div class="relative flex-1 min-w-[200px]">
+                        <input type="text" id="deptSearchBox" oninput="filterChecklistItems(this.value)" placeholder="ابحث عن قسم أو إدارة..."
+                               class="w-full border border-border-light rounded-xl py-1.5 pr-8 pl-3 bg-white text-xs font-semibold focus:ring-2 focus:ring-primary/20" />
+                        <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">search</span>
+                    </div>
+                    <div class="flex items-center gap-1 text-xs">
+                        <button type="button" onclick="selectAllDepts(true)" class="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-bold text-[11px] transition-colors">تحديد الكل</button>
+                        <button type="button" onclick="selectAllDepts(false)" class="px-2.5 py-1 rounded-lg bg-neutral-200 hover:bg-neutral-300 text-neutral-700 font-bold text-[11px] transition-colors">إلغاء التحديد</button>
+                        <button type="button" onclick="toggleChecklistPanel()" class="px-2.5 py-1 rounded-lg bg-neutral-800 text-white font-bold text-[11px] hover:bg-neutral-900 transition-colors">إغلاق القائمة</button>
+                    </div>
+                </div>
+
+                <!-- Dual Columns: Group 1 vs Group 2 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Column 1: إدارات الشبكة والأفرع (1..24) -->
+                    <div class="bg-white rounded-xl border border-border-light p-3 space-y-2">
+                        <div class="flex items-center justify-between pb-1.5 border-b border-neutral-100">
+                            <span class="text-xs font-extrabold text-primary flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">corporate_fare</span>
+                                <span>إدارات الشبكة والأفرع (@g1Depts.Count)</span>
+                            </span>
+                            <div class="flex items-center gap-1 text-[10px]">
+                                <button type="button" onclick="selectGroupDepts('g1', true)" class="text-primary hover:underline font-bold">تحديد</button>
+                                <span class="text-neutral-300">|</span>
+                                <button type="button" onclick="selectGroupDepts('g1', false)" class="text-neutral-500 hover:underline">إلغاء</button>
+                            </div>
+                        </div>
+                        <div class="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar" id="group1Container">
+                            @foreach (var d in g1Depts)
+                            {
+                                var idVal = int.Parse(d.Value);
+                                var isChecked = selectedIds.Contains(idVal);
+                                <label class="checklist-item flex items-center gap-2 p-1.5 rounded-lg hover:bg-primary/5 cursor-pointer text-xs text-neutral-800 transition-colors" data-name="@d.Text" data-group="g1">
+                                    <input type="checkbox" name="SelectedDepartmentIDs" value="@d.Value" class="dept-checkbox rounded border-neutral-300 text-primary focus:ring-primary h-3.5 w-3.5" @(isChecked ? "checked" : "") onchange="updateSelectedCount()" />
+                                    <span class="font-medium text-neutral-900">@d.Text</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Column 2: القطاعات والوحدات (> 24) -->
+                    <div class="bg-white rounded-xl border border-border-light p-3 space-y-2">
+                        <div class="flex items-center justify-between pb-1.5 border-b border-neutral-100">
+                            <span class="text-xs font-extrabold text-[#2e6f7b] flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">apartment</span>
+                                <span>القطاعات والوحدات (@g2Depts.Count)</span>
+                            </span>
+                            <div class="flex items-center gap-1 text-[10px]">
+                                <button type="button" onclick="selectGroupDepts('g2', true)" class="text-[#2e6f7b] hover:underline font-bold">تحديد</button>
+                                <span class="text-neutral-300">|</span>
+                                <button type="button" onclick="selectGroupDepts('g2', false)" class="text-neutral-500 hover:underline">إلغاء</button>
+                            </div>
+                        </div>
+                        <div class="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar" id="group2Container">
+                            @foreach (var d in g2Depts)
+                            {
+                                var idVal = int.Parse(d.Value);
+                                var isChecked = selectedIds.Contains(idVal);
+                                <label class="checklist-item flex items-center gap-2 p-1.5 rounded-lg hover:bg-[#58a4b0]/10 cursor-pointer text-xs text-neutral-800 transition-colors" data-name="@d.Text" data-group="g2">
+                                    <input type="checkbox" name="SelectedDepartmentIDs" value="@d.Value" class="dept-checkbox rounded border-neutral-300 text-[#2e6f7b] focus:ring-[#2e6f7b] h-3.5 w-3.5" @(isChecked ? "checked" : "") onchange="updateSelectedCount()" />
+                                    <span class="font-medium text-neutral-900">@d.Text</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Official Report Card Layout -->
+    <div id="reportPrintable" class="bg-surface-white border border-border-light rounded-2xl shadow-sm overflow-hidden p-6 space-y-4">
+        <!-- Official Header Info -->
+        <div class="report-document-header flex justify-between items-center border-b pb-4 border-gray-200 text-xs">
+            <div class="space-y-1">
+            </div>
+            <div class="text-center space-y-0.5">
+                <span class="text-base font-black text-primary px-3 py-1 bg-primary/10 rounded-lg">بيان استهلاك الورق للأقسام والإدارات</span>
+                <p class="text-xs font-bold text-neutral-600 mt-1">
+                    الفترة: @(string.IsNullOrEmpty(from) ? "من البداية" : from) إلى @(string.IsNullOrEmpty(to) ? "تاريخ اليوم" : to)
+                </p>
+            </div>
+            <div class="text-left space-y-1 text-neutral-500 text-[11px]">
+                <p>تاريخ التقرير: @DateTime.Now.ToString("yyyy/MM/dd")</p>
+                <p>وقت التقرير: @DateTime.Now.ToString("HH:mm")</p>
+            </div>
+        </div>
+
+        @{
+            var group1Rows = Model.PivotRows.Where(r => r.DepartmentID <= 24).OrderBy(r => r.DepartmentID).ToList();
+            var group2Rows = Model.PivotRows.Where(r => r.DepartmentID > 24).OrderBy(r => r.DepartmentID).ToList();
+
+            // The report layout follows the selected department groups.
+            // No explicit selection means the normal two-group report.
+            bool hasExplicitDepartmentSelection = selectedIds.Any() || Model.Filter.DepartmentID.HasValue;
+            bool showGroup1 = !hasExplicitDepartmentSelection ||
+                              selectedIds.Any(id => id <= 24) ||
+                              (Model.Filter.DepartmentID.HasValue && Model.Filter.DepartmentID.Value <= 24);
+            bool showGroup2 = !hasExplicitDepartmentSelection ||
+                              selectedIds.Any(id => id > 24) ||
+                              (Model.Filter.DepartmentID.HasValue && Model.Filter.DepartmentID.Value > 24);
+
+            int g1TotalA4 = group1Rows.Sum(r => r.QuantityByPaperType.TryGetValue("A4", out var v) ? v : 0);
+            int g1TotalA3 = group1Rows.Sum(r => r.QuantityByPaperType.TryGetValue("A3", out var v) ? v : 0);
+
+            int g2TotalA4 = group2Rows.Sum(r => r.QuantityByPaperType.TryGetValue("A4", out var v) ? v : 0);
+            int g2TotalA3 = group2Rows.Sum(r => r.QuantityByPaperType.TryGetValue("A3", out var v) ? v : 0);
+
+            var reportTotalA4 = Model.ColumnTotals.TryGetValue("A4", out var _totalA4) ? _totalA4 : 0;
+            var reportTotalA3 = Model.ColumnTotals.TryGetValue("A3", out var _totalA3) ? _totalA3 : 0;
+        }
+
+        <!-- Dynamic Report Table: one selected group = full width, both groups = side by side -->
+        <div class="w-full overflow-x-auto">
+            <table class="w-full text-[11px] border-collapse border border-gray-300">
+                @if (showGroup1 && showGroup2)
+                {
+                    int maxPairs = Math.Max(group1Rows.Count, group2Rows.Count);
+
+                    <thead>
+                        <tr class="bg-gray-800 text-white font-extrabold">
+                            <th colspan="4" class="py-2 px-3 text-center border border-gray-400 border-l-2 border-l-gray-500">
+                                إدارات الشبكة والأفرع
+                            </th>
+                            <th colspan="4" class="py-2 px-3 text-center border border-gray-400">
+                                القطاعات والأقسام المقدمة والوحدات
+                            </th>
+                        </tr>
+                        <tr class="bg-gray-100 text-gray-800 font-bold border-b-2 border-gray-400">
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-12">كود</th>
+                            <th class="py-1.5 px-3 text-right border border-gray-300 min-w-[140px]">اسم الإدارة / الفرع</th>
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-16 text-primary">ورق A4</th>
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-16 text-primary border-l-2 border-l-gray-400">ورق A3</th>
+
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-12">كود</th>
+                            <th class="py-1.5 px-3 text-right border border-gray-300 min-w-[140px]">اسم القطاع / الوحدة</th>
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-16 text-primary">ورق A4</th>
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-16 text-primary">ورق A3</th>
+                        </tr>
+                    </thead>
+
+                    <tbody class="divide-y divide-gray-200">
+                        @if (maxPairs > 0)
+                        {
+                            for (int i = 0; i < maxPairs; i++)
+                            {
+                                var left = i < group1Rows.Count ? group1Rows[i] : null;
+                                var right = i < group2Rows.Count ? group2Rows[i] : null;
+                                var rowBg = i % 2 == 0 ? "bg-white" : "bg-neutral-50/60";
+
+                                <tr class="@rowBg hover:bg-primary/5 transition-colors">
+                                    @if (left != null)
+                                    {
+                                        int leftA4 = left.QuantityByPaperType.TryGetValue("A4", out var lv1) ? lv1 : 0;
+                                        int leftA3 = left.QuantityByPaperType.TryGetValue("A3", out var lv2) ? lv2 : 0;
+
+                                        <td class="text-center font-bold text-gray-700 border border-gray-300">@left.DepartmentID</td>
+                                        <td class="font-semibold text-gray-900 border border-gray-300 text-right truncate" title="@left.DepartmentName">@left.DepartmentName</td>
+                                        <td class="text-center border border-gray-300 font-bold @(leftA4 > 0 ? "text-primary" : "text-gray-400")">@(leftA4 > 0 ? $"{leftA4}" : "-")</td>
+                                        <td class="text-center border border-gray-300 font-bold border-l-2 border-l-gray-400 @(leftA3 > 0 ? "text-primary" : "text-gray-400")">@(leftA3 > 0 ? $"{leftA3}" : "-")</td>
+                                    }
+                                    else
+                                    {
+                                        <td class="text-center text-gray-300 border border-gray-300">-</td>
+                                        <td class="text-center text-gray-300 border border-gray-300">-</td>
+                                        <td class="text-center text-gray-300 border border-gray-300">-</td>
+                                        <td class="text-center text-gray-300 border border-gray-300 border-l-2 border-l-gray-400">-</td>
+                                    }
+
+                                    @if (right != null)
+                                    {
+                                        int rightA4 = right.QuantityByPaperType.TryGetValue("A4", out var rv1) ? rv1 : 0;
+                                        int rightA3 = right.QuantityByPaperType.TryGetValue("A3", out var rv2) ? rv2 : 0;
+
+                                        <td class="text-center font-bold text-gray-700 border border-gray-300">@right.DepartmentID</td>
+                                        <td class="font-semibold text-gray-900 border border-gray-300 text-right truncate" title="@right.DepartmentName">@right.DepartmentName</td>
+                                        <td class="text-center border border-gray-300 font-bold @(rightA4 > 0 ? "text-primary" : "text-gray-400")">@(rightA4 > 0 ? $"{rightA4}" : "-")</td>
+                                        <td class="text-center border border-gray-300 font-bold @(rightA3 > 0 ? "text-primary" : "text-gray-400")">@(rightA3 > 0 ? $"{rightA3}" : "-")</td>
+                                    }
+                                    else
+                                    {
+                                        <td class="text-center text-gray-300 border border-gray-300">-</td>
+                                        <td class="text-center text-gray-300 border border-gray-300">-</td>
+                                        <td class="text-center text-gray-300 border border-gray-300">-</td>
+                                        <td class="text-center text-gray-300 border border-gray-300">-</td>
+                                    }
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="py-6 text-center text-gray-500 font-medium border border-gray-300">
+                                    لا توجد بيانات صرف للفترة المحددة.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+
+                    <tfoot class="font-bold bg-gray-50 text-gray-900 border-t-2 border-gray-400">
+                        <tr class="bg-gray-100 font-extrabold">
+                            <td colspan="2" class="py-2 px-3 text-right border border-gray-300">إجمالي إدارات الشبكة والأفرع</td>
+                            <td class="py-2 px-2 text-center text-primary border border-gray-300">@g1TotalA4 @QuantityHelper.RezmaUnit(g1TotalA4)</td>
+                            <td class="py-2 px-2 text-center text-primary border border-gray-300 border-l-2 border-l-gray-400">@g1TotalA3 @QuantityHelper.RezmaUnit(g1TotalA3)</td>
+
+                            <td colspan="2" class="py-2 px-3 text-right border border-gray-300">إجمالي القطاعات والوحدات</td>
+                            <td class="py-2 px-2 text-center text-primary border border-gray-300">@g2TotalA4 @QuantityHelper.RezmaUnit(g2TotalA4)</td>
+                            <td class="py-2 px-2 text-center text-primary border border-gray-300">@g2TotalA3 @QuantityHelper.RezmaUnit(g2TotalA3)</td>
+                        </tr>
+                        <tr class="bg-primary/10 text-primary font-extrabold border-t-2 border-primary/50 report-grand-total-row">
+                            <td colspan="2" class="py-2.5 px-3 text-right border border-gray-300 text-sm">إجمالي ورق A4 لكافة الأقسام:</td>
+                            <td colspan="2" class="py-2.5 px-2 text-center border border-gray-300 text-sm">@reportTotalA4 @QuantityHelper.RezmaUnit(reportTotalA4)</td>
+                            <td colspan="2" class="py-2.5 px-3 text-right border border-gray-300 text-sm">إجمالي ورق A3 لكافة الأقسام:</td>
+                            <td colspan="2" class="py-2.5 px-2 text-center border border-gray-300 text-sm">@reportTotalA3 @QuantityHelper.RezmaUnit(reportTotalA3)</td>
+                        </tr>
+                    </tfoot>
+                }
+                else if (showGroup1)
+                {
+                    <thead>
+                        <tr class="bg-gray-800 text-white font-extrabold">
+                            <th colspan="4" class="py-2 px-3 text-center border border-gray-400">إدارات الشبكة والأفرع</th>
+                        </tr>
+                        <tr class="bg-gray-100 text-gray-800 font-bold border-b-2 border-gray-400">
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-16">كود</th>
+                            <th class="py-1.5 px-3 text-right border border-gray-300">اسم الإدارة / الفرع</th>
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-28 text-primary">ورق A4</th>
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-28 text-primary">ورق A3</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        @if (group1Rows.Any())
+                        {
+                            for (int i = 0; i < group1Rows.Count; i++)
+                            {
+                                var row = group1Rows[i];
+                                int a4 = row.QuantityByPaperType.TryGetValue("A4", out var v1) ? v1 : 0;
+                                int a3 = row.QuantityByPaperType.TryGetValue("A3", out var v2) ? v2 : 0;
+                                var rowBg = i % 2 == 0 ? "bg-white" : "bg-neutral-50/60";
+                                <tr class="@rowBg hover:bg-primary/5 transition-colors">
+                                    <td class="text-center font-bold text-gray-700 border border-gray-300">@row.DepartmentID</td>
+                                    <td class="font-semibold text-gray-900 border border-gray-300 text-right" title="@row.DepartmentName">@row.DepartmentName</td>
+                                    <td class="text-center border border-gray-300 font-bold @(a4 > 0 ? "text-primary" : "text-gray-400")">@(a4 > 0 ? $"{a4}" : "-")</td>
+                                    <td class="text-center border border-gray-300 font-bold @(a3 > 0 ? "text-primary" : "text-gray-400")">@(a3 > 0 ? $"{a3}" : "-")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="4" class="py-6 text-center text-gray-500 font-medium border border-gray-300">لا توجد بيانات صرف للفترة المحددة.</td></tr>
+                        }
+                    </tbody>
+                    <tfoot class="font-bold bg-gray-50 text-gray-900 border-t-2 border-gray-400">
+                        <tr class="bg-gray-100 font-extrabold">
+                            <td colspan="2" class="py-2 px-3 text-right border border-gray-300">إجمالي إدارات الشبكة والأفرع</td>
+                            <td class="py-2 px-2 text-center text-primary border border-gray-300">@g1TotalA4 @QuantityHelper.RezmaUnit(g1TotalA4)</td>
+                            <td class="py-2 px-2 text-center text-primary border border-gray-300">@g1TotalA3 @QuantityHelper.RezmaUnit(g1TotalA3)</td>
+                        </tr>
+                        <tr class="bg-primary/10 text-primary font-extrabold border-t-2 border-primary/50 report-grand-total-row">
+                            <td class="py-2.5 px-3 text-right border border-gray-300">إجمالي ورق A4:</td>
+                            <td class="py-2.5 px-2 text-center border border-gray-300">@reportTotalA4 @QuantityHelper.RezmaUnit(reportTotalA4)</td>
+                            <td class="py-2.5 px-3 text-right border border-gray-300">إجمالي ورق A3:</td>
+                            <td class="py-2.5 px-2 text-center border border-gray-300">@reportTotalA3 @QuantityHelper.RezmaUnit(reportTotalA3)</td>
+                        </tr>
+                    </tfoot>
+                }
+                else
+                {
+                    <thead>
+                        <tr class="bg-gray-800 text-white font-extrabold">
+                            <th colspan="4" class="py-2 px-3 text-center border border-gray-400">القطاعات والأقسام المقدمة والوحدات</th>
+                        </tr>
+                        <tr class="bg-gray-100 text-gray-800 font-bold border-b-2 border-gray-400">
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-16">كود</th>
+                            <th class="py-1.5 px-3 text-right border border-gray-300">اسم القطاع / الوحدة</th>
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-28 text-primary">ورق A4</th>
+                            <th class="py-1.5 px-2 text-center border border-gray-300 w-28 text-primary">ورق A3</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        @if (group2Rows.Any())
+                        {
+                            for (int i = 0; i < group2Rows.Count; i++)
+                            {
+                                var row = group2Rows[i];
+                                int a4 = row.QuantityByPaperType.TryGetValue("A4", out var v1) ? v1 : 0;
+                                int a3 = row.QuantityByPaperType.TryGetValue("A3", out var v2) ? v2 : 0;
+                                var rowBg = i % 2 == 0 ? "bg-white" : "bg-neutral-50/60";
+                                <tr class="@rowBg hover:bg-primary/5 transition-colors">
+                                    <td class="text-center font-bold text-gray-700 border border-gray-300">@row.DepartmentID</td>
+                                    <td class="font-semibold text-gray-900 border border-gray-300 text-right" title="@row.DepartmentName">@row.DepartmentName</td>
+                                    <td class="text-center border border-gray-300 font-bold @(a4 > 0 ? "text-primary" : "text-gray-400")">@(a4 > 0 ? $"{a4}" : "-")</td>
+                                    <td class="text-center border border-gray-300 font-bold @(a3 > 0 ? "text-primary" : "text-gray-400")">@(a3 > 0 ? $"{a3}" : "-")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="4" class="py-6 text-center text-gray-500 font-medium border border-gray-300">لا توجد بيانات صرف للفترة المحددة.</td></tr>
+                        }
+                    </tbody>
+                    <tfoot class="font-bold bg-gray-50 text-gray-900 border-t-2 border-gray-400">
+                        <tr class="bg-gray-100 font-extrabold">
+                            <td colspan="2" class="py-2 px-3 text-right border border-gray-300">إجمالي القطاعات والوحدات</td>
+                            <td class="py-2 px-2 text-center text-primary border border-gray-300">@g2TotalA4 @QuantityHelper.RezmaUnit(g2TotalA4)</td>
+                            <td class="py-2 px-2 text-center text-primary border border-gray-300">@g2TotalA3 @QuantityHelper.RezmaUnit(g2TotalA3)</td>
+                        </tr>
+                        <tr class="bg-primary/10 text-primary font-extrabold border-t-2 border-primary/50 report-grand-total-row">
+                            <td class="py-2.5 px-3 text-right border border-gray-300">إجمالي ورق A4:</td>
+                            <td class="py-2.5 px-2 text-center border border-gray-300">@reportTotalA4 @QuantityHelper.RezmaUnit(reportTotalA4)</td>
+                            <td class="py-2.5 px-3 text-right border border-gray-300">إجمالي ورق A3:</td>
+                            <td class="py-2.5 px-2 text-center border border-gray-300">@reportTotalA3 @QuantityHelper.RezmaUnit(reportTotalA3)</td>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+        <!-- Official Signature Block -->
+        <div id="officialSignature" class="pt-12 mt-12 border-t flex justify-between items-center px-12 text-center text-sm font-bold text-gray-800">
+            <div>
+                <p>التوقيع (&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;)</p>
+                <p>عميد/حسني رشاد النوبي</p>
+                <p>مدير ادارة تكنولوجيا المعلومات</p>
+                <p class="mt-12 text-xs text-gray-400">...................................................</p>
+            </div>
+            <div>
+                <p>يعتمد&emsp;التوقيع (&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;)</p>
+                <p>لواء أ ح/محمد السيد الزلاط</p>
+                <p>مدير عام الشركة المصرية للتعدين</p>
+                <p class="mt-12 text-xs text-gray-400">...................................................</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var fpFrom, fpTo;
+
+    function initReportFilters() {
+        var fpConfig = {
+            locale: "ar",
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            disableMobile: true,
+            onClose: function(selectedDates) {
+                if (selectedDates && selectedDates.length) paperScheduleInstantFilter(document.getElementById('periodForm'), 140);
+            }
+        };
+
+        fpFrom = flatpickr("#fromDateInput", fpConfig);
+        fpTo = flatpickr("#toDateInput", fpConfig);
+        updateSelectedCount();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initReportFilters, { once: true });
+    else initReportFilters();
+
+    function setPreset(type) {
+        var now = new Date();
+        var fromStr = "";
+        var toStr = "";
+
+        if (type === 'today') {
+            fromStr = toStr = formatDate(now);
+        } else if (type === 'week') {
+            var daysSinceSaturday = (now.getDay() + 1) % 7;
+            var weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceSaturday);
+            var weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6);
+            fromStr = formatDate(weekStart);
+            toStr = formatDate(weekEnd);
+        } else if (type === 'month') {
+            var firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+            var lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            fromStr = formatDate(firstDay);
+            toStr = formatDate(lastDay);
+        } else if (type === 'year') {
+            var firstYearDay = new Date(now.getFullYear(), 0, 1);
+            var lastYearDay = new Date(now.getFullYear(), 11, 31);
+            fromStr = formatDate(firstYearDay);
+            toStr = formatDate(lastYearDay);
+        } else if (type === 'all') {
+            fromStr = "";
+            toStr = "";
+        }
+
+        if (fpFrom) fpFrom.setDate(fromStr, true);
+        if (fpTo) fpTo.setDate(toStr, true);
+        paperScheduleInstantFilter(document.getElementById('periodForm'), 100);
+    }
+
+    function formatDate(d) {
+        var month = '' + (d.getMonth() + 1);
+        var day = '' + d.getDate();
+        var year = d.getFullYear();
+        if (month.length < 2) month = '0' + month;
+        if (day.length < 2) day = '0' + day;
+        return [year, month, day].join('-');
+    }
+
+    function toggleChecklistPanel() {
+        var panel = document.getElementById('checklistPanel');
+        var chevron = document.getElementById('checklistChevron');
+        var isHidden = panel.classList.contains('hidden');
+
+        if (isHidden) {
+            panel.classList.remove('hidden');
+            chevron.style.transform = 'rotate(180deg)';
+        } else {
+            panel.classList.add('hidden');
+            chevron.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    function selectAllDepts(checked) {
+        document.querySelectorAll('.dept-checkbox').forEach(function (cb) {
+            cb.checked = checked;
+        });
+        updateSelectedCount();
+        paperScheduleInstantFilter(document.getElementById('periodForm'), 650);
+    }
+
+    function selectGroupDepts(group, checked) {
+        document.querySelectorAll('.checklist-item[data-group="' + group + '"] .dept-checkbox').forEach(function (cb) {
+            cb.checked = checked;
+        });
+        updateSelectedCount();
+        paperScheduleInstantFilter(document.getElementById('periodForm'), 650);
+    }
+
+    function updateSelectedCount() {
+        var checkboxes = document.querySelectorAll('.dept-checkbox');
+        var total = checkboxes.length;
+        var checkedCount = document.querySelectorAll('.dept-checkbox:checked').length;
+
+        var countBadge = document.getElementById('selectedCountBadge');
+        var triggerLabel = document.getElementById('triggerBtnLabel');
+
+        if (checkedCount === 0 || checkedCount === total) {
+            if (countBadge) countBadge.innerText = 'الكل (' + total + ')';
+            if (triggerLabel) triggerLabel.innerText = 'جميع الجهات والأقسام مشمولة';
+        } else {
+            if (countBadge) countBadge.innerText = checkedCount + ' من ' + total;
+            if (triggerLabel) triggerLabel.innerText = 'تم تحديد (' + checkedCount + ') جهة';
+        }
+    }
+
+    function filterChecklistItems(query) {
+        var q = normalizeArabicSearch(query);
+        document.querySelectorAll('.checklist-item').forEach(function (item) {
+            var name = normalizeArabicSearch(item.getAttribute('data-name') || '');
+            if (!q || name.indexOf(q) !== -1) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    function exportToExcel() {
+        var fromVal = (document.getElementById('fromDateInput')?.value || '').trim();
+        var toVal = (document.getElementById('toDateInput')?.value || '').trim();
+
+        var params = new URLSearchParams();
+        if (fromVal) params.append('FromDate', fromVal);
+        if (toVal) params.append('ToDate', toVal);
+
+        var checkboxes = document.querySelectorAll('.dept-checkbox');
+        var total = checkboxes.length;
+        var checkedBoxes = document.querySelectorAll('.dept-checkbox:checked');
+
+        if (checkedBoxes.length > 0 && checkedBoxes.length < total) {
+            checkedBoxes.forEach(function (cb) {
+                params.append('SelectedDepartmentIDs', cb.value);
+            });
+        }
+
+        window.location.href = '/PaperManagement/Request/ExportReportToExcel?' + params.toString();
+    }
+</script>

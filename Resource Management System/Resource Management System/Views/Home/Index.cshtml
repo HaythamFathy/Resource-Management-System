@@ -1,0 +1,254 @@
+@{
+    Layout = null;
+    var userName = User.Identity?.Name ?? "المستخدم";
+    var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "مستخدم";
+}
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>اختر النظام | نظام إدارة الموارد</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="~/lib/material-symbols/material-symbols-outlined.css" rel="stylesheet" asp-append-version="true" />
+    <script id="tailwind-config">
+            tailwind.config = {
+                darkMode: "class",
+                theme: {
+                    extend: {
+                        colors: {
+                            "primary": "#34435E",
+                            "primary-container": "#58a4b0",
+                            "surface-white": "#FFFFFF",
+                            "background-subtle": "#F8F9FA",
+                            "on-surface": "#131b2c",
+                            "on-surface-variant": "#3f484a",
+                            "border-light": "#D8DBE2",
+                            "nav-dark": "#373F51"
+                        },
+                        borderRadius: { DEFAULT: "10px", lg: "12px", xl: "16px", full: "9999px" },
+                        fontFamily: { body: ["Cairo", "sans-serif"] }
+                    }
+                }
+            }
+    </script>
+    <style>
+            body {
+                font-family: 'Cairo', sans-serif;
+                background-color: #F8F9FA;
+            }
+
+            .material-symbols-outlined {
+                font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+                vertical-align: middle;
+            }
+
+            .portal-card {
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0px 4px 20px rgba(55, 63, 81, 0.06);
+                border: 1px solid #D8DBE2;
+            }
+
+                .portal-card:hover {
+                    transform: translateY(-4px);
+                    box-shadow: 0px 12px 30px rgba(8, 104, 115, 0.12);
+                    border-color: #58a4b0;
+                }
+    </style>
+</head>
+<body class="bg-background-subtle min-h-screen flex flex-col justify-between text-on-surface">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-surface-white border-b border-border-light shadow-sm sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                    <span class="material-symbols-outlined text-2xl">apps</span>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-primary leading-tight">نظام إدارة الموارد</h1>
+                </div>
+            </div>
+
+            <!-- User Profile & Actions -->
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-3 bg-background-subtle px-4 py-2 rounded-xl border border-border-light">
+                    <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">
+                        <span class="material-symbols-outlined text-lg">person</span>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm font-bold text-on-surface leading-none">@userName</p>
+                    </div>
+                </div>
+
+                @if (userRole == Roles.Admin)
+                {
+                    <a href="/UserManagement/Index" class="flex items-center gap-1.5 text-xs font-bold text-white bg-[#34435E] hover:bg-[#2a3549] px-3 py-2 rounded-lg transition-colors">
+                        <span class="material-symbols-outlined text-base">group</span>
+                        <span>إدارة المستخدمين</span>
+                    </a>
+                }
+
+                <form asp-controller="Account" asp-action="Logout" method="post" class="inline">
+                    <button type="submit" class="flex items-center gap-1 text-sm font-semibold text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors" title="تسجيل الخروج">
+                        <span class="material-symbols-outlined text-lg">logout</span>
+                        <span>خروج</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-6 py-12 flex-1 w-full">
+
+        <!-- Welcome Banner -->
+        <div class="mb-10 text-center md:text-right">
+            <h2 class="text-3xl font-extrabold text-on-surface mb-2">مرحباً بك @userName</h2>
+        </div>
+
+        <!-- System Selection Icons Grid (Clean Card Portal) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+            <!-- System 1: Paper Management (Active) -->
+            <a href="/PaperManagement/Request" class="portal-card bg-surface-white rounded-xl p-6 flex flex-col justify-between group cursor-pointer">
+                <div>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="w-14 h-14 bg-primary/10 text-primary rounded-xl flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors duration-300">
+                            <span class="material-symbols-outlined text-3xl">description</span>
+                        </div>
+                        <span class="bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1 rounded-full border border-teal-200">
+                            متاح الآن
+                        </span>
+                    </div>
+
+                    <h3 class="text-xl font-bold text-on-surface mb-2 group-hover:text-primary transition-colors">
+                        إدارة مخزون الورق
+                    </h3>
+                </div>
+
+                <div class="pt-4 border-t border-border-light flex items-center justify-between text-primary font-bold text-sm group-hover:translate-x-[-4px] transition-transform">
+                    <span>فتح النظام</span>
+                    <span class="material-symbols-outlined">arrow_back</span>
+                </div>
+            </a>
+
+            @if (userRole != Roles.Department)
+            {
+                <!-- System 2: Holiday Management (Coming Soon) -->
+                <div class="portal-card bg-surface-white rounded-xl p-6 flex flex-col justify-between opacity-75 hover:opacity-100 transition-opacity">
+                    <div>
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
+                                <span class="material-symbols-outlined text-3xl">event_note</span>
+                            </div>
+                            <span class="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full border border-gray-200">
+                                قريباً
+                            </span>
+                        </div>
+
+                        <h3 class="text-xl font-bold text-on-surface mb-2">
+                            إدارة الإجازات
+                        </h3>
+                    </div>
+
+                    <div class="pt-4 border-t border-border-light flex items-center justify-between text-gray-400 font-medium text-sm">
+                        <span>غير مفعّل حالياً</span>
+                        <span class="material-symbols-outlined">lock</span>
+                    </div>
+                </div>
+
+                <!-- System 3: Device Management (Coming Soon) -->
+                <div class="portal-card bg-surface-white rounded-xl p-6 flex flex-col justify-between opacity-75 hover:opacity-100 transition-opacity">
+                    <div>
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="w-14 h-14 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center">
+                                <span class="material-symbols-outlined text-3xl">devices</span>
+                            </div>
+                            <span class="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full border border-gray-200">
+                                قريباً
+                            </span>
+                        </div>
+
+                        <h3 class="text-xl font-bold text-on-surface mb-2">
+                            إدارة الأجهزة
+                        </h3>
+                    </div>
+
+                    <div class="pt-4 border-t border-border-light flex items-center justify-between text-gray-400 font-medium text-sm">
+                        <span>غير مفعّل حالياً</span>
+                        <span class="material-symbols-outlined">lock</span>
+                    </div>
+                </div>
+
+                <!-- System 4: Supplies Tracking (Coming Soon) -->
+                <div class="portal-card bg-surface-white rounded-xl p-6 flex flex-col justify-between opacity-75 hover:opacity-100 transition-opacity">
+                    <div>
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="w-14 h-14 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
+                                <span class="material-symbols-outlined text-3xl">inventory_2</span>
+                            </div>
+                            <span class="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full border border-gray-200">
+                                قريباً
+                            </span>
+                        </div>
+
+                        <h3 class="text-xl font-bold text-on-surface mb-2">
+                            متابعة المستلزمات
+                        </h3>
+                    </div>
+
+                    <div class="pt-4 border-t border-border-light flex items-center justify-between text-gray-400 font-medium text-sm">
+                        <span>غير مفعّل حالياً</span>
+                        <span class="material-symbols-outlined">lock</span>
+                    </div>
+                </div>
+            }
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-surface-white border-t border-border-light py-6 text-center text-xs text-on-surface-variant">
+    </footer>
+
+    @if (userRole == Roles.Approver)
+    {
+        <div id="requestNotification" class="fixed top-5 left-5 z-50 hidden max-w-sm rounded-xl bg-white p-4 shadow-2xl border border-primary/20" style="transition: opacity 0.6s ease;" role="status"></div>
+    }
+    @if (userRole == Roles.IT || userRole == Roles.Admin)
+    {
+        <div id="lowStockNotification" class="fixed top-5 right-5 z-50 hidden max-w-sm rounded-xl bg-white p-4 shadow-2xl border" style="border-color:#f9414455; transition: opacity 0.6s ease;" role="status"></div>
+    }
+
+    @if (userRole == Roles.Approver)
+    {
+        <script>
+                fetch('/PaperManagement/Request/NotificationFeed').then(function(r) { return r.json(); }).then(function(items) {
+                    if (!items || !items.length) return;
+                    var popup = document.getElementById('requestNotification');
+                    popup.innerHTML = '<strong class="block text-primary mb-1">طلبات تحتاج إجراء</strong>' +
+                        items.map(function(x) { return '<div class="text-sm py-1">' + x.message + '</div>'; }).join('');
+                    popup.classList.remove('hidden');
+                    setTimeout(function() { popup.style.opacity = '0'; }, 20000);
+                    setTimeout(function() { popup.classList.add('hidden'); popup.style.opacity = '1'; }, 20600);
+                }).catch(function() { });
+        </script>
+    }
+    @if (userRole == Roles.IT || userRole == Roles.Admin)
+    {
+        <script>
+                fetch('/PaperManagement/Request/LowStockFeed').then(function(r) { return r.json(); }).then(function(items) {
+                    if (!items || !items.length) return;
+                    var popup = document.getElementById('lowStockNotification');
+                    popup.innerHTML = '<strong class="block mb-1" style="color:#f94144;">تنبيه: مخزون منخفض</strong>' +
+                        items.map(function(x) { return '<div class="text-sm py-1">' + x.name + ' (' + x.stock + ')</div>'; }).join('');
+                    popup.classList.remove('hidden');
+                    setTimeout(function() { popup.classList.add('hidden'); }, 9000);
+                }).catch(function() { });
+        </script>
+    }
+
+</body>
+</html>

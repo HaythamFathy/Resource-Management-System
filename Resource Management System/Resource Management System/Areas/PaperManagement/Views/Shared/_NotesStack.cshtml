@@ -1,0 +1,42 @@
+﻿@model Resource_Management_System.Models.RequestItemViewModel
+<div class="rounded-xl border border-border-light p-4">
+    <h4 class="font-bold mb-3">الملاحظات</h4>
+    <div class="space-y-3 text-sm">
+        @if (!string.IsNullOrWhiteSpace(Model.Notes))
+        {
+            <div class="border-r-4 border-slate-300 pr-3"><p class="text-xs font-bold text-gray-500 mb-0.5">ملاحظات القسم</p><p>@Model.Notes</p></div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.ITReviewNotes))
+        {
+            <div class="border-r-4 border-primary pr-3"><p class="text-xs font-bold text-gray-500 mb-0.5">ملاحظات تقنية المعلومات</p><p>@Model.ITReviewNotes</p></div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.ApproverOneNote))
+        {
+            <div class="border-r-4 border-amber-400 pr-3">
+                <p class="text-xs font-bold text-gray-500 mb-0.5">
+                    ملاحظات نائب رئيس إدارة تكنولوجيا المعلومات
+                </p><p>@Model.ApproverOneNote</p>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.ApproverTwoNote))
+        {
+            <div class="border-r-4 border-amber-600 pr-3">
+                <p class="text-xs font-bold text-gray-500 mb-0.5">
+                    ملاحظات مدير إدارة تكنولوجيا المعلومات
+                </p><p>@Model.ApproverTwoNote</p>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.RejectionNote))
+        {
+            <div class="border-r-4 border-red-500 pr-3"><p class="text-xs font-bold text-red-700 mb-0.5">تم الرفض من قبل: @(Model.RejectedByName ?? "غير معروف")</p><p>@Model.RejectionNote</p></div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.IssueNotes))
+        {
+            <div class="border-r-4 border-emerald-500 pr-3"><p class="text-xs font-bold text-gray-500 mb-0.5">ملاحظات الصرف</p><p>@Model.IssueNotes</p></div>
+        }
+        @if (string.IsNullOrWhiteSpace(Model.Notes) && string.IsNullOrWhiteSpace(Model.ITReviewNotes) && string.IsNullOrWhiteSpace(Model.ApproverOneNote) && string.IsNullOrWhiteSpace(Model.ApproverTwoNote) && string.IsNullOrWhiteSpace(Model.RejectionNote) && string.IsNullOrWhiteSpace(Model.IssueNotes))
+        {
+            <p class="text-gray-400">لا توجد ملاحظات.</p>
+        }
+    </div>
+</div>
