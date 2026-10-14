@@ -60,8 +60,14 @@
                 </div>
             </div>
 
-            <!-- User Header Pill -->
-            <div class="flex items-center gap-4">
+                @if (userRole == Roles.Admin || userRole == Roles.IT || userRole == Roles.Approver)
+                {
+                    <a href="/SuppliesTracking/Supplies/Index" class="flex items-center gap-1.5 text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 px-3 py-2 rounded-lg transition-colors shadow-sm" title="نظام متابعة المستلزمات">
+                        <span class="material-symbols-outlined text-base">inventory_2</span>
+                        <span>متابعة المستلزمات</span>
+                    </a>
+                }
+
                 @if (userRole == Roles.Admin)
                 {
                     <a href="/PaperManagement/DepartmentManagement/Index" class="flex items-center gap-1.5 text-xs font-bold text-white bg-primary hover:bg-primary/90 px-3 py-2 rounded-lg transition-colors">

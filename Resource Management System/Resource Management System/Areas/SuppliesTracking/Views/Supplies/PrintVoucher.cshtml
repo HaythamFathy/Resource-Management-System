@@ -1,0 +1,277 @@
+@model Resource_Management_System.Areas.SuppliesTracking.Models.PrintVoucherViewModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="utf-8" />
+    <title>إذن صرف واستلام عهدة - @Model.TransactionNumber</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            margin: 0;
+            padding: 30px;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+        .no-print {
+            max-width: 800px;
+            margin: 0 auto 20px auto;
+            background: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+        }
+        .btn-print { background: #34435E; color: white; }
+        .btn-back { background: #e2e8f0; color: #334155; margin-right: 10px; }
+
+        .voucher-sheet {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        .header-table {
+            width: 100%;
+            border-bottom: 2px solid #34435E;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 20px;
+            font-weight: 800;
+            color: #34435E;
+            margin: 10px 0;
+        }
+
+        .meta-table {
+            width: 100%;
+            margin-bottom: 25px;
+            border-collapse: collapse;
+        }
+
+        .meta-table td {
+            padding: 8px 12px;
+            font-size: 13px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .meta-label {
+            font-weight: bold;
+            color: #475569;
+            width: 25%;
+        }
+
+        .meta-value {
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+
+        .items-table th, .items-table td {
+            border: 1px solid #cbd5e1;
+            padding: 10px 12px;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .items-table th {
+            background: #f1f5f9;
+            font-weight: 800;
+            color: #334155;
+        }
+
+        .signatures-table {
+            width: 100%;
+            margin-top: 50px;
+            text-align: center;
+        }
+
+        .signatures-table td {
+            width: 33.33%;
+            padding: 15px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .sign-line {
+            margin-top: 40px;
+            border-bottom: 1px dashed #64748b;
+            display: inline-block;
+            width: 80%;
+        }
+
+        @@media print {
+            body { background: white; padding: 0; }
+            .no-print { display: none !important; }
+            .voucher-sheet {
+                border: none;
+                box-shadow: none;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print">
+        <div>
+            <h2 style="margin:0; font-size:18px; color:#34435E;">إذن استلام وتسليم عهدة ومستلزمات</h2>
+            <div style="font-size:12px; color:#64748b;">رقم الإذن: @Model.TransactionNumber</div>
+        </div>
+        <div>
+            <a href="/SuppliesTracking/Supplies/Index" class="btn btn-back">العودة للمخزن</a>
+            <button onclick="window.print()" class="btn btn-print">طباعة الإذن 🖨️</button>
+        </div>
+    </div>
+
+    <div class="voucher-sheet">
+        <table class="header-table">
+            <tr>
+                <td style="width: 30%; text-align: right;">
+                    <div style="font-weight:bold; font-size:13px;">نظام إدارة الموارد</div>
+                    <div style="font-size:11px; color:#64748b;">إدارة تكنولوجيا المعلومات</div>
+                </td>
+                <td style="width: 40%; text-align: center;">
+                    <div class="title">إذن صرف وتسليم مستلزمات / عهدة</div>
+                    <div style="font-size:12px; font-weight:bold; color:#475569;">(@Model.TransactionTypeArabic)</div>
+                </td>
+                <td style="width: 30%; text-align: left; font-size:12px;">
+                    <div>رقم الإذن: <strong>@Model.TransactionNumber</strong></div>
+                    <div>التاريخ: <strong>@Model.TransactionDate.ToString("yyyy-MM-dd")</strong></div>
+                </td>
+            </tr>
+        </table>
+
+        <table class="meta-table">
+            <tr>
+                <td class="meta-label">الجهة / القسم المستفيد:</td>
+                <td class="meta-value">@(Model.DepartmentName ?? "غير محدد")</td>
+                <td class="meta-label">الموظف المستلم:</td>
+                <td class="meta-value">@(Model.RecipientName ?? "---")</td>
+            </tr>
+            @if (!string.IsNullOrWhiteSpace(Model.PrinterModel))
+            {
+                <tr>
+                    <td class="meta-label">موديل الطابعة المستهدفة:</td>
+                    <td class="meta-value" colspan="3" style="color:#6b21a8;">@Model.PrinterModel</td>
+                </tr>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.SupplierOrReference))
+            {
+                <tr>
+                    <td class="meta-label">رقم المرجع / الإذن الورقي:</td>
+                    <td class="meta-value" colspan="3">@Model.SupplierOrReference</td>
+                </tr>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.Notes))
+            {
+                <tr>
+                    <td class="meta-label">ملاحظات:</td>
+                    <td class="meta-value" colspan="3">@Model.Notes</td>
+                </tr>
+            }
+        </table>
+
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 10%;">م</th>
+                    <th style="width: 25%;">كود الصنف</th>
+                    <th style="width: 45%;">بيان الصنف والموديل</th>
+                    <th style="width: 20%;">الكمية المنصرفة</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td style="font-family:monospace; font-weight:bold;">@Model.ItemCode</td>
+                    <td style="text-align:right; font-weight:bold;">
+                        @Model.ItemName
+                        @if (!string.IsNullOrWhiteSpace(Model.BrandModel))
+                        {
+                            <span style="color:#64748b; font-size:11px;">(@Model.BrandModel)</span>
+                        }
+                    </td>
+                    <td style="font-weight:800; font-size:15px;">@Model.Quantity @Model.UnitName</td>
+                </tr>
+            </tbody>
+        </table>
+
+        @if (Model.Units.Count > 0)
+        {
+            <div style="margin-bottom:20px;">
+                <div style="font-size:12px; font-weight:800; color:#334155; margin-bottom:8px;">الأرقام التسلسلية والباركود للأجهزة المسلمة:</div>
+                <table class="items-table" style="font-size:11px;">
+                    <thead>
+                        <tr>
+                            <th style="width:10%;">م</th>
+                            <th style="width:45%;">كود الباركود المسجل</th>
+                            <th style="width:45%;">السيريال الأصلي (S/N)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < Model.Units.Count; i++)
+                        {
+                            var u = Model.Units[i];
+                            <tr>
+                                <td>@(i + 1)</td>
+                                <td style="font-family:monospace; font-weight:bold;">@u.Barcode</td>
+                                <td style="font-family:monospace;">@(u.SerialNumber ?? "---")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <table class="signatures-table">
+            <tr>
+                <td>
+                    <div>مسؤول المخزن / IT</div>
+                    <div style="font-size:11px; color:#64748b; margin-top:4px;">@(Model.PerformedByName ?? "المسؤول")</div>
+                    <div class="sign-line"></div>
+                </td>
+                <td>
+                    <div>المستلم بالقسم</div>
+                    <div style="font-size:11px; color:#64748b; margin-top:4px;">@(Model.RecipientName ?? "....................")</div>
+                    <div class="sign-line"></div>
+                </td>
+                <td>
+                    <div>مدير الإدارة / المعتمد</div>
+                    <div style="font-size:11px; color:#64748b; margin-top:4px;">يعتمد</div>
+                    <div class="sign-line"></div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+</body>
+</html>

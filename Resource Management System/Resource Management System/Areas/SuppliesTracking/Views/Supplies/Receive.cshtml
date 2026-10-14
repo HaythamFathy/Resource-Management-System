@@ -1,0 +1,80 @@
+@model Resource_Management_System.Areas.SuppliesTracking.Models.ReceiveViewModel
+@{
+    Layout = "_SuppliesLayout";
+    ViewData["Title"] = "توريد واستلام مخزني";
+}
+
+<div class="max-w-3xl mx-auto space-y-6">
+
+    <!-- Header Card -->
+    <div class="bg-surface-white rounded-2xl p-6 border border-border-light shadow-sm flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <i class="bi bi-box-arrow-in-down-right text-2xl"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-primary">توريد واستلام أصناف للمخزن</h2>
+                <p class="text-xs text-slate-500">إضافة رصيد للمستهلكات أو توليد باركود تلقائي للأجهزة الموردة</p>
+            </div>
+        </div>
+        <a href="/SuppliesTracking/Supplies/Index" class="text-xs font-bold text-slate-600 hover:text-primary flex items-center gap-1">
+            <i class="bi bi-arrow-right"></i>
+            <span>العودة للمخزن</span>
+        </a>
+    </div>
+
+    <!-- Inbound Form -->
+    <div class="bg-surface-white rounded-2xl p-6 border border-border-light shadow-sm">
+        <form asp-action="Receive" method="post" class="space-y-5">
+            @Html.AntiForgeryToken()
+
+            <div>
+                <label asp-for="ItemID" class="block text-xs font-bold text-slate-700 mb-1.5">الصنف المراد توريده *</label>
+                <select asp-for="ItemID" asp-items="Model.AvailableItems" required class="w-full text-sm rounded-xl border-border-light focus:border-primary focus:ring-primary py-2.5">
+                    <option value="">-- اختر الصنف من القائمة --</option>
+                </select>
+                <span asp-validation-for="ItemID" class="text-xs text-red-600 font-bold"></span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label asp-for="Quantity" class="block text-xs font-bold text-slate-700 mb-1.5">الكمية الواردة *</label>
+                    <input asp-for="Quantity" type="number" min="1" max="5000" required class="w-full text-sm rounded-xl border-border-light focus:border-primary focus:ring-primary py-2.5" />
+                    <span asp-validation-for="Quantity" class="text-xs text-red-600 font-bold"></span>
+                </div>
+
+                <div>
+                    <label asp-for="SupplierOrReference" class="block text-xs font-bold text-slate-700 mb-1.5">المورد / رقم الفاتورة أو إذن التوريد</label>
+                    <input asp-for="SupplierOrReference" type="text" placeholder="مثال: شركة التوريدات - فاتورة 1042" class="w-full text-sm rounded-xl border-border-light focus:border-primary focus:ring-primary py-2.5" />
+                </div>
+            </div>
+
+            <div id="serialsContainer" class="p-4 rounded-xl bg-blue-50/50 border border-blue-200">
+                <div class="flex items-center gap-2 mb-2 text-blue-900 font-bold text-xs">
+                    <i class="bi bi-upc-scan text-base"></i>
+                    <span>خاص بالأجهزة (طابعات، حواسب، لابتوبات):</span>
+                </div>
+                <p class="text-[11px] text-blue-700 mb-2 leading-relaxed">
+                    سيقوم النظام بتوليد <strong>أكواد باركود فريدة تلقائياً</strong> لكل قطعة فور الحفظ لتتمكن من طباعتها ولصقها على الأجهزة. يمكنك أيضاً إدخال الأرقام التسلسلية للشركة المصنعة (اختياري) في الحقل أدناه:
+                </p>
+                <textarea asp-for="SerialNumbersText" rows="3" placeholder="أدخل الأرقام التسلسلية (Serial Numbers) مفصولة بأسطر أو فواصل (اختياري)..." class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary font-mono"></textarea>
+            </div>
+
+            <div>
+                <label asp-for="Notes" class="block text-xs font-bold text-slate-700 mb-1.5">ملاحظات إضافية</label>
+                <textarea asp-for="Notes" rows="2" placeholder="أي ملاحظات تخص حالة الشحنة أو الاستلام..." class="w-full text-xs rounded-xl border-border-light focus:border-primary focus:ring-primary"></textarea>
+            </div>
+
+            <div class="pt-4 border-t border-border-light flex items-center justify-between">
+                <a href="/SuppliesTracking/Supplies/Index" class="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+                    إلغاء
+                </a>
+                <button type="submit" class="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-2 transition-colors">
+                    <i class="bi bi-check-lg text-sm"></i>
+                    <span>تأكيد التوريد وحفظ الرصيد</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+</div>

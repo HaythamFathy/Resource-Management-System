@@ -1,0 +1,146 @@
+@using Resource_Management_System.Common
+@{
+    var userName = User.Identity?.Name ?? "المستخدم";
+    var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+}
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>@ViewData["Title"] | متابعة المستلزمات</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="~/lib/material-symbols/material-symbols-outlined.css" rel="stylesheet" asp-append-version="true" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/bootstrap-icons.min.css" asp-append-version="true">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#34435E",
+                        "primary-container": "#58a4b0",
+                        "surface-white": "#FFFFFF",
+                        "background-subtle": "#F8F9FA",
+                        "on-surface": "#131b2c",
+                        "on-surface-variant": "#3f484a",
+                        "border-light": "#D8DBE2",
+                        "nav-dark": "#373F51"
+                    },
+                    borderRadius: { DEFAULT: "10px", lg: "12px", xl: "16px", full: "9999px" },
+                    fontFamily: { body: ["Cairo", "sans-serif"] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #F8F9FA; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+        .supplies-nav a { transition: all 0.2s ease; }
+    </style>
+    @RenderSection("Styles", required: false)
+</head>
+<body class="bg-background-subtle min-h-screen flex flex-col justify-between text-on-surface">
+
+    <!-- Top Header -->
+    <header class="bg-surface-white border-b border-border-light shadow-sm sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/Home/Index" class="flex items-center gap-1.5 text-sm font-bold text-primary bg-primary/5 hover:bg-primary/10 px-3.5 py-2.5 rounded-lg transition-colors border border-primary/20" title="بوابة النظم الرئيسية">
+                    <span class="material-symbols-outlined text-base">apps</span>
+                    <span>الرئيسية</span>
+                </a>
+
+                <div class="h-6 w-px bg-border-light mx-1"></div>
+
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 bg-purple-700 text-white rounded-lg flex items-center justify-center font-bold shadow-sm">
+                        <span class="material-symbols-outlined text-xl">inventory_2</span>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-base text-primary leading-none">نظام متابعة المستلزمات والأجهزة</h1>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Header & Navigation Links -->
+            <div class="flex items-center gap-4">
+                <div class="text-right border-l border-border-light pl-4">
+                    <p class="text-sm font-bold text-on-surface leading-none">@userName</p>
+                    <span class="text-[11px] font-semibold text-purple-700">@userRole</span>
+                </div>
+
+                <form asp-controller="Account" asp-action="Logout" asp-area="" method="post" class="inline">
+                    <button type="submit" class="text-xs font-bold text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors" title="تسجيل الخروج">
+                        <span class="material-symbols-outlined text-base">logout</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Sub-Navigation Bar -->
+        <nav class="supplies-nav px-6 border-t border-border-light/60 bg-white">
+            <div class="max-w-7xl mx-auto flex items-center gap-3 py-2 text-sm font-bold overflow-x-auto whitespace-nowrap">
+                <a href="/SuppliesTracking/Supplies/Index" class="px-3.5 py-2 rounded-lg flex items-center gap-2 text-primary hover:bg-slate-100 transition-colors">
+                    <i class="bi bi-grid-3x3-gap-fill text-purple-700"></i>
+                    <span>المخزن والأصناف</span>
+                </a>
+
+                @if (userRole == Roles.Admin || userRole == Roles.IT)
+                {
+                    <a href="/SuppliesTracking/Supplies/Receive" class="px-3.5 py-2 rounded-lg flex items-center gap-2 text-primary hover:bg-slate-100 transition-colors">
+                        <i class="bi bi-box-arrow-in-down-right text-emerald-600"></i>
+                        <span>توريد واستلام (مع الباركود)</span>
+                    </a>
+
+                    <a href="/SuppliesTracking/Supplies/Movements" class="px-3.5 py-2 rounded-lg flex items-center gap-2 text-primary hover:bg-slate-100 transition-colors">
+                        <i class="bi bi-arrow-left-right text-sky-600"></i>
+                        <span>صرف وحركات المخزن</span>
+                    </a>
+                }
+
+                <a href="/SuppliesTracking/Supplies/Reports" class="px-3.5 py-2 rounded-lg flex items-center gap-2 text-primary hover:bg-slate-100 transition-colors">
+                    <i class="bi bi-file-earmark-bar-graph text-amber-600"></i>
+                    <span>سجل الحركات والتقارير</span>
+                </a>
+
+                <div class="mr-auto flex items-center gap-2">
+                    <a href="/PaperManagement/Request/Index" class="text-xs font-bold text-slate-500 hover:text-primary flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50">
+                        <i class="bi bi-arrow-left"></i>
+                        <span>نظام الورق</span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-6 py-6 flex-1 w-full">
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="mb-5 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bold flex items-center gap-2 shadow-sm animate-fade-in">
+                <i class="bi bi-check-circle-fill text-lg"></i>
+                <span>@TempData["SuccessMessage"]</span>
+            </div>
+        }
+
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="mb-5 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm font-bold flex items-center gap-2 shadow-sm animate-fade-in">
+                <i class="bi bi-exclamation-triangle-fill text-lg"></i>
+                <span>@TempData["ErrorMessage"]</span>
+            </div>
+        }
+
+        @RenderBody()
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-surface-white border-t border-border-light py-4 text-center text-xs text-on-surface-variant">
+        <span>نظام إدارة الموارد &copy; @DateTime.UtcNow.Year - قسم متابعة المستلزمات والأجهزة</span>
+    </footer>
+
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

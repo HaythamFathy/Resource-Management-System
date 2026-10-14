@@ -1,0 +1,169 @@
+@model Resource_Management_System.Areas.SuppliesTracking.Models.SuppliesReportsViewModel
+@{
+    Layout = "_SuppliesLayout";
+    ViewData["Title"] = "سجل الحركات والتقارير";
+}
+
+<div class="space-y-6">
+
+    <!-- Header & Filter Card -->
+    <div class="bg-surface-white rounded-2xl p-6 border border-border-light shadow-sm">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                    <i class="bi bi-file-earmark-bar-graph text-2xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-primary">سجل حركات المخزن والتقارير</h2>
+                    <p class="text-xs text-slate-500">متابعة كافة حركات التوريد والصرف والإرجاع والصيانة والتكهين</p>
+                </div>
+            </div>
+
+            <div>
+                <button type="button" onclick="window.print()" class="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold inline-flex items-center gap-2">
+                    <i class="bi bi-printer"></i>
+                    <span>طباعة التقرير</span>
+                </button>
+            </div>
+        </div>
+
+        <form method="get" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">من تاريخ</label>
+                <input type="date" name="fromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary" />
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">إلى تاريخ</label>
+                <input type="date" name="toDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary" />
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">نوع الحركة</label>
+                <select name="movementType" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary">
+                    <option value="">جميع الحركات</option>
+                    @foreach (var mt in Model.MovementTypes)
+                    {
+                        <!option value="@mt.Value" @(Model.MovementType == mt.Value ? "selected" : "")>@mt.Text</!option>
+                    }
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">القسم</label>
+                <select name="departmentId" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary">
+                    <option value="">جميع الأقسام</option>
+                    @foreach (var d in Model.Departments)
+                    {
+                        <!option value="@d.Value" @(Model.DepartmentID?.ToString() == d.Value ? "selected" : "")>@d.Text</!option>
+                    }
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">الصنف</label>
+                <select name="itemId" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary">
+                    <option value="">جميع الأصناف</option>
+                    @foreach (var itm in Model.Items)
+                    {
+                        <!option value="@itm.Value" @(Model.ItemID?.ToString() == itm.Value ? "selected" : "")>@itm.Text</!option>
+                    }
+                </select>
+            </div>
+
+            <div class="flex items-end gap-2">
+                <button type="submit" class="flex-1 bg-slate-800 text-white text-xs font-bold py-2.5 px-3 rounded-lg hover:bg-slate-900 transition-colors">
+                    <i class="bi bi-search ml-1"></i> تصفية
+                </button>
+                <a href="/SuppliesTracking/Supplies/Reports" class="bg-slate-100 text-slate-600 text-xs font-bold py-2.5 px-3 rounded-lg hover:bg-slate-200 transition-colors">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Results Table -->
+    <div class="bg-surface-white rounded-xl border border-border-light shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-border-light flex items-center justify-between bg-slate-50">
+            <span class="text-xs font-bold text-slate-700">عدد الحركات المسجلة: <strong>@Model.Transactions.Count</strong></span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+                <thead class="bg-slate-50 border-b border-border-light text-slate-600 font-bold">
+                    <tr>
+                        <th class="p-3.5">رقم الإذن</th>
+                        <th class="p-3.5">نوع الحركة</th>
+                        <th class="p-3.5">الصنف</th>
+                        <th class="p-3.5 text-center">الكمية</th>
+                        <th class="p-3.5">القسم المستفيد</th>
+                        <th class="p-3.5">المستلم / المورد</th>
+                        <th class="p-3.5">الطابعة المستهدفة</th>
+                        <th class="p-3.5">التاريخ</th>
+                        <th class="p-3.5 text-center">مستند</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-light/60 text-slate-700">
+                    @if (Model.Transactions.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="9" class="p-8 text-center text-slate-400 font-semibold">
+                                لا توجد حركات مسجلة تطابق شروط التصفية.
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var t in Model.Transactions)
+                    {
+                        <tr class="hover:bg-slate-50/70 transition-colors">
+                            <td class="p-3.5 font-mono font-bold text-slate-900">@t.TransactionNumber</td>
+                            <td class="p-3.5 font-bold">
+                                @switch (t.TransactionType)
+                                {
+                                    case "Receive":
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">توريد</span>
+                                        break;
+                                    case "Issue":
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] bg-sky-50 text-sky-700 border border-sky-200">صرف</span>
+                                        break;
+                                    case "Return":
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] bg-blue-50 text-blue-700 border border-blue-200">إرجاع</span>
+                                        break;
+                                    case "Maintenance":
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] bg-amber-50 text-amber-700 border border-amber-200">صيانة</span>
+                                        break;
+                                    case "Scrap":
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] bg-red-50 text-red-700 border border-red-200">تكهين</span>
+                                        break;
+                                    default:
+                                        <span>@t.TransactionType</span>
+                                        break;
+                                }
+                            </td>
+                            <td class="p-3.5 font-bold text-primary">@t.ItemName</td>
+                            <td class="p-3.5 text-center font-extrabold">@t.Quantity</td>
+                            <td class="p-3.5">@(t.DepartmentName ?? "---")</td>
+                            <td class="p-3.5 text-slate-600">@(t.RecipientName ?? t.SupplierOrReference ?? "---")</td>
+                            <td class="p-3.5 text-purple-700 font-semibold">@(t.PrinterModel ?? "---")</td>
+                            <td class="p-3.5 text-slate-500 font-mono">@t.TransactionDate.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td class="p-3.5 text-center">
+                                @if (t.TransactionType == "Issue")
+                                {
+                                    <a href="/SuppliesTracking/Supplies/PrintVoucher?transactionId=@t.TransactionID" target="_blank" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold" title="طباعة إذن الصرف">
+                                        <i class="bi bi-file-earmark-text"></i>
+                                    </a>
+                                }
+                                else if (t.TransactionType == "Receive")
+                                {
+                                    <a href="/SuppliesTracking/Supplies/PrintBarcodes?transactionId=@t.TransactionID" target="_blank" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold" title="طباعة الباركود">
+                                        <i class="bi bi-upc-scan"></i>
+                                    </a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>

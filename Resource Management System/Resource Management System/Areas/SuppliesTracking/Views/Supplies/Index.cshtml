@@ -1,0 +1,307 @@
+@model Resource_Management_System.Areas.SuppliesTracking.Models.SuppliesIndexViewModel
+@using Resource_Management_System.Common
+@{
+    Layout = "_SuppliesLayout";
+    ViewData["Title"] = "المخزن ودليل الأصناف";
+    var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+    bool canManage = userRole == Roles.Admin || userRole == Roles.IT;
+}
+
+<div class="space-y-6">
+
+    <!-- KPI Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div class="bg-surface-white rounded-xl p-4 border border-border-light shadow-sm flex flex-col justify-between">
+            <span class="text-xs font-bold text-slate-500">إجمالي الأصناف</span>
+            <div class="flex items-baseline justify-between mt-2">
+                <span class="text-2xl font-extrabold text-primary">@Model.TotalItemsCount</span>
+                <i class="bi bi-collection text-xl text-slate-400"></i>
+            </div>
+        </div>
+
+        <div class="bg-surface-white rounded-xl p-4 border border-border-light shadow-sm flex flex-col justify-between">
+            <span class="text-xs font-bold text-slate-500">رصيد المستهلكات (أحبار/درامات)</span>
+            <div class="flex items-baseline justify-between mt-2">
+                <span class="text-2xl font-extrabold text-purple-700">@Model.ConsumablesStockCount.ToString("N0")</span>
+                <i class="bi bi-droplet-fill text-xl text-purple-400"></i>
+            </div>
+        </div>
+
+        <div class="bg-surface-white rounded-xl p-4 border border-border-light shadow-sm flex flex-col justify-between">
+            <span class="text-xs font-bold text-slate-500">أجهزة بالمخزن (جاهزة)</span>
+            <div class="flex items-baseline justify-between mt-2">
+                <span class="text-2xl font-extrabold text-emerald-600">@Model.DevicesInStockCount.ToString("N0")</span>
+                <i class="bi bi-pc-display text-xl text-emerald-400"></i>
+            </div>
+        </div>
+
+        <div class="bg-surface-white rounded-xl p-4 border border-border-light shadow-sm flex flex-col justify-between">
+            <span class="text-xs font-bold text-slate-500">أجهزة منصرفة (بالأقسام)</span>
+            <div class="flex items-baseline justify-between mt-2">
+                <span class="text-2xl font-extrabold text-sky-600">@Model.DevicesIssuedCount.ToString("N0")</span>
+                <i class="bi bi-box-arrow-up-right text-xl text-sky-400"></i>
+            </div>
+        </div>
+
+        <div class="bg-surface-white rounded-xl p-4 border border-border-light shadow-sm flex flex-col justify-between">
+            <span class="text-xs font-bold text-slate-500">أجهزة بالصيانة</span>
+            <div class="flex items-baseline justify-between mt-2">
+                <span class="text-2xl font-extrabold text-amber-600">@Model.DevicesUnderMaintenanceCount.ToString("N0")</span>
+                <i class="bi bi-tools text-xl text-amber-400"></i>
+            </div>
+        </div>
+
+        <div class="bg-surface-white rounded-xl p-4 border border-border-light shadow-sm flex flex-col justify-between @(Model.LowStockItemsCount > 0 ? "border-red-300 bg-red-50/30" : "")">
+            <span class="text-xs font-bold @(Model.LowStockItemsCount > 0 ? "text-red-700" : "text-slate-500")">نواقص المخزون</span>
+            <div class="flex items-baseline justify-between mt-2">
+                <span class="text-2xl font-extrabold @(Model.LowStockItemsCount > 0 ? "text-red-600" : "text-slate-700")">@Model.LowStockItemsCount</span>
+                <i class="bi bi-exclamation-triangle-fill text-xl @(Model.LowStockItemsCount > 0 ? "text-red-500" : "text-slate-400")"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions & Filter Bar -->
+    <div class="bg-surface-white rounded-xl p-5 border border-border-light shadow-sm">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+            <div>
+                <h2 class="text-lg font-bold text-primary">دليل الأصناف والأرصدة الحالية</h2>
+                <p class="text-xs text-slate-500">عرض جميع المستلزمات والأجهزة المسجلة بالمخزن ومتابعة حركتها</p>
+            </div>
+
+            @if (canManage)
+            {
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="openCreateItemModal()" class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-[#28354b] shadow-sm transition-colors">
+                        <i class="bi bi-plus-circle text-sm"></i>
+                        <span>إضافة صنف جديد</span>
+                    </button>
+                    <a href="/SuppliesTracking/Supplies/Receive" class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-sm transition-colors">
+                        <i class="bi bi-box-arrow-in-down text-sm"></i>
+                        <span>توريد للمخزن</span>
+                    </a>
+                </div>
+            }
+        </div>
+
+        <!-- Filter Form -->
+        <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">التصنيف</label>
+                <select name="categoryId" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary">
+                    <option value="">جميع التصنيفات</option>
+                    @foreach (var c in Model.Categories)
+                    {
+                        <!option value="@c.Value" @(Model.SelectedCategoryID?.ToString() == c.Value ? "selected" : "")>@c.Text</!option>
+                    }
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">نوع التتبع</label>
+                <select name="trackType" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary">
+                    <!option value="" @(string.IsNullOrEmpty(Model.SelectedTrackType) ? "selected" : "")>الكل</!option>
+                    <!option value="consumable" @(Model.SelectedTrackType == "consumable" ? "selected" : "")>مستهلكات بالكمية (أحبار/درامات)</!option>
+                    <!option value="device" @(Model.SelectedTrackType == "device" ? "selected" : "")>أجهزة بالباركود (طابعات/PC/لابتوب)</!option>
+                    <!option value="lowstock" @(Model.SelectedTrackType == "lowstock" ? "selected" : "")>نواقص المخزون فقط</!option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">بحث</label>
+                <input type="text" name="searchKeyword" value="@Model.SearchKeyword" placeholder="كود، اسم، ماركة، طابعة متوافقة..." class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary" />
+            </div>
+
+            <div class="flex items-end gap-2">
+                <button type="submit" class="flex-1 bg-slate-800 text-white text-xs font-bold py-2.5 px-4 rounded-lg hover:bg-slate-900 transition-colors">
+                    <i class="bi bi-search ml-1"></i> تصفية
+                </button>
+                <a href="/SuppliesTracking/Supplies/Index" class="bg-slate-100 text-slate-600 text-xs font-bold py-2.5 px-3 rounded-lg hover:bg-slate-200 transition-colors" title="إلغاء التصفية">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Items Table -->
+    <div class="bg-surface-white rounded-xl border border-border-light shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+                <thead class="bg-slate-50 border-b border-border-light text-slate-600 font-bold">
+                    <tr>
+                        <th class="p-3.5">الكود</th>
+                        <th class="p-3.5">اسم الصنف</th>
+                        <th class="p-3.5">التصنيف</th>
+                        <th class="p-3.5">الماركة / الطابعات المتوافقة</th>
+                        <th class="p-3.5 text-center">نوع التتبع</th>
+                        <th class="p-3.5 text-center">الرصيد المتاح</th>
+                        <th class="p-3.5 text-center">إجمالي الوارد</th>
+                        <th class="p-3.5 text-center">إجمالي المنصرف</th>
+                        @if (canManage)
+                        {
+                            <th class="p-3.5 text-center">الإجراءات</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-light/60 text-slate-700">
+                    @if (Model.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="9" class="p-8 text-center text-slate-400 font-semibold">
+                                لا توجد أصناف مطابقة للبحث أو لم تتم إضافة أصناف بعد.
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr class="hover:bg-slate-50/70 transition-colors @(item.IsLowStock ? "bg-amber-50/20" : "")">
+                            <td class="p-3.5 font-mono font-bold text-slate-900">@item.ItemCode</td>
+                            <td class="p-3.5 font-bold text-primary">
+                                @item.ItemName
+                                @if (item.IsLowStock)
+                                {
+                                    <span class="inline-block mr-1 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-black">ناقص</span>
+                                }
+                            </td>
+                            <td class="p-3.5">
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                    @item.CategoryName
+                                </span>
+                            </td>
+                            <td class="p-3.5 text-slate-500">
+                                @if (!string.IsNullOrWhiteSpace(item.BrandModel))
+                                {
+                                    <div class="font-semibold text-slate-700">@item.BrandModel</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(item.CompatiblePrinters))
+                                {
+                                    <div class="text-[11px] text-purple-700 mt-0.5"><i class="bi bi-printer"></i> @item.CompatiblePrinters</div>
+                                }
+                            </td>
+                            <td class="p-3.5 text-center">
+                                @if (item.TrackType)
+                                {
+                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">
+                                        <i class="bi bi-upc-scan ml-0.5"></i> باركود (قطعة)
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <i class="bi bi-stack ml-0.5"></i> كمية (@item.UnitName)
+                                    </span>
+                                }
+                            </td>
+                            <td class="p-3.5 text-center font-extrabold text-sm @(item.IsLowStock ? "text-red-600" : "text-emerald-700")">
+                                @item.CurrentStock.ToString("N0")
+                            </td>
+                            <td class="p-3.5 text-center text-slate-500">@item.TotalReceived.ToString("N0")</td>
+                            <td class="p-3.5 text-center text-slate-500">@item.TotalIssued.ToString("N0")</td>
+
+                            @if (canManage)
+                            {
+                                <td class="p-3.5 text-center whitespace-nowrap">
+                                    <div class="inline-flex items-center gap-1.5">
+                                        <a href="/SuppliesTracking/Supplies/Receive?itemId=@item.ItemID" class="px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold" title="توريد رصيد">
+                                            <i class="bi bi-plus-lg"></i> توريد
+                                        </a>
+
+                                        <a href="/SuppliesTracking/Supplies/Movements?type=Issue&itemId=@item.ItemID" class="px-2 py-1 rounded bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 text-xs font-bold" title="صرف لقسم">
+                                            <i class="bi bi-arrow-up-right"></i> صرف
+                                        </a>
+
+                                        @if (item.TrackType)
+                                        {
+                                            <a href="/SuppliesTracking/Supplies/Movements?type=Maintenance&itemId=@item.ItemID" class="px-2 py-1 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 text-xs font-bold" title="صيانة/إرجاع">
+                                                <i class="bi bi-tools"></i>
+                                            </a>
+                                        }
+                                    </div>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Add New Supply Item -->
+@if (canManage)
+{
+    <div id="createItemModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-surface-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-border-light relative animate-scale-up">
+            <div class="flex items-center justify-between pb-4 border-b border-border-light">
+                <h3 class="text-base font-bold text-primary flex items-center gap-2">
+                    <i class="bi bi-plus-circle text-purple-700"></i>
+                    <span>إضافة صنف جديد إلى المخزن</span>
+                </h3>
+                <button type="button" onclick="closeCreateItemModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="bi bi-x-lg text-lg"></i>
+                </button>
+            </div>
+
+            <form asp-action="CreateItem" method="post" class="mt-4 space-y-4">
+                @Html.AntiForgeryToken()
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">التصنيف *</label>
+                    <select name="CategoryID" required class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary">
+                        <option value="">اختر التصنيف...</option>
+                        @foreach (var c in Model.Categories)
+                        {
+                            <option value="@c.Value">@c.Text</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">اسم الصنف *</label>
+                        <input type="text" name="ItemName" required placeholder="مثال: حبر أسود HP 85A أو طابعة HP Pro 400" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الماركة / الموديل</label>
+                        <input type="text" name="BrandModel" placeholder="مثال: HP LaserJet / Dell OptiPlex" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">الطابعات المتوافقة (للأحبار والدرامات)</label>
+                    <input type="text" name="CompatiblePrinters" placeholder="مثال: HP LaserJet P1102, M1212nf" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">نوع التتبع *</label>
+                        <select name="TrackType" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary">
+                            <option value="false">مستهلكات بالكمية (أحبار/درامات/أدوات)</option>
+                            <option value="true">أجهزة بالباركود (طابعات/PC/لابتوب)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">حد تنبيه النواقص</label>
+                        <input type="number" name="LowStockThreshold" value="5" min="1" class="w-full text-xs rounded-lg border-border-light focus:border-primary focus:ring-primary" />
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-4 border-t border-border-light">
+                    <button type="button" onclick="closeCreateItemModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100">إلغاء</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl text-xs font-bold bg-primary text-white hover:bg-[#28354b]">حفظ الصنف</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openCreateItemModal() {
+            document.getElementById('createItemModal').classList.remove('hidden');
+        }
+        function closeCreateItemModal() {
+            document.getElementById('createItemModal').classList.add('hidden');
+        }
+    </script>
+}

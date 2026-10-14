@@ -1,0 +1,147 @@
+@model Resource_Management_System.Areas.SuppliesTracking.Models.PrintBarcodesViewModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="utf-8" />
+    <title>طباعة ملصقات الباركود - @Model.ItemName</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f4f6f8;
+            color: #111;
+        }
+
+        .no-print {
+            background: white;
+            padding: 15px 25px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+        }
+        .btn-print { background: #34435E; color: white; }
+        .btn-back { background: #e2e8f0; color: #334155; margin-right: 10px; }
+
+        .labels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 15px;
+        }
+
+        .barcode-card {
+            background: white;
+            border: 1.5px dashed #94a3b8;
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+            box-sizing: border-box;
+            page-break-inside: avoid;
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: #1e293b;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .card-sub {
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+
+        .barcode-svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .serial-text {
+            font-family: monospace;
+            font-size: 11px;
+            color: #475569;
+            margin-top: 4px;
+            font-weight: bold;
+        }
+
+        @@media print {
+            body { background: white; padding: 0; }
+            .no-print { display: none !important; }
+            .labels-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 10px;
+            }
+            .barcode-card {
+                border: 1px solid #000;
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print">
+        <div>
+            <h2 style="margin:0; font-size:18px; color:#34435E;">ملصقات الباركود - إذن توريد: @Model.TransactionNumber</h2>
+            <div style="font-size:12px; color:#64748b; margin-top:4px;">
+                الصنف: <strong>@Model.ItemName</strong> (@Model.ItemCode) | عدد الملصقات: <strong>@Model.Units.Count</strong>
+            </div>
+        </div>
+        <div>
+            <a href="/SuppliesTracking/Supplies/Index" class="btn btn-back">العودة للمخزن</a>
+            <button onclick="window.print()" class="btn btn-print">طباعة الملصقات 🖨️</button>
+        </div>
+    </div>
+
+    <div class="labels-grid">
+        @foreach (var unit in Model.Units)
+        {
+            <div class="barcode-card">
+                <div class="card-title">نظام إدارة الموارد - IT</div>
+                <div class="card-sub">@Model.ItemName @(!string.IsNullOrWhiteSpace(Model.BrandModel) ? "- " + Model.BrandModel : "")</div>
+                <svg class="barcode-svg" data-barcode="@unit.Barcode"></svg>
+                @if (!string.IsNullOrWhiteSpace(unit.SerialNumber))
+                {
+                    <div class="serial-text">S/N: @unit.SerialNumber</div>
+                }
+            </div>
+        }
+    </div>
+
+    <script>
+        document.querySelectorAll('.barcode-svg').forEach(function(el) {
+            JsBarcode(el, el.getAttribute('data-barcode'), {
+                format: "CODE128",
+                width: 1.6,
+                height: 48,
+                displayValue: true,
+                fontSize: 13,
+                font: "monospace",
+                margin: 0
+            });
+        });
+    </script>
+</body>
+</html>

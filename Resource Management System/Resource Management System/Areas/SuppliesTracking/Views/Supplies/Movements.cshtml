@@ -1,0 +1,192 @@
+@model Resource_Management_System.Areas.SuppliesTracking.Models.MovementViewModel
+@{
+    Layout = "_SuppliesLayout";
+    ViewData["Title"] = "صرف وحركات المخزن";
+}
+
+<div class="max-w-4xl mx-auto space-y-6">
+
+    <!-- Header Card -->
+    <div class="bg-surface-white rounded-2xl p-6 border border-border-light shadow-sm flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
+                <i class="bi bi-arrow-left-right text-2xl"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-primary">صرف وحركات المستلزمات والأجهزة</h2>
+                <p class="text-xs text-slate-500">صرف للأقسام، إرجاع للمخزن، تحويل للصيانة، أو تكهين التالف</p>
+            </div>
+        </div>
+        <a href="/SuppliesTracking/Supplies/Index" class="text-xs font-bold text-slate-600 hover:text-primary flex items-center gap-1">
+            <i class="bi bi-arrow-right"></i>
+            <span>العودة للمخزن</span>
+        </a>
+    </div>
+
+    <!-- Movement Tabs & Form -->
+    <div class="bg-surface-white rounded-2xl border border-border-light shadow-sm overflow-hidden">
+
+        <!-- Tabs Navigation -->
+        <div class="flex items-center border-b border-border-light bg-slate-50/70 p-2 gap-2 text-xs font-bold">
+            <button type="button" onclick="setMovementType('Issue')" id="tab-Issue" class="flex-1 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all">
+                <i class="bi bi-box-arrow-up-right text-sm"></i>
+                <span>صرف لقسم / جهة</span>
+            </button>
+            <button type="button" onclick="setMovementType('Return')" id="tab-Return" class="flex-1 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all">
+                <i class="bi bi-arrow-counterclockwise text-sm"></i>
+                <span>إرجاع للمخزن</span>
+            </button>
+            <button type="button" onclick="setMovementType('Maintenance')" id="tab-Maintenance" class="flex-1 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all">
+                <i class="bi bi-tools text-sm"></i>
+                <span>تحويل للصيانة</span>
+            </button>
+            <button type="button" onclick="setMovementType('Scrap')" id="tab-Scrap" class="flex-1 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all">
+                <i class="bi bi-trash3 text-sm"></i>
+                <span>تكهين / تالف</span>
+            </button>
+        </div>
+
+        <form asp-action="Movements" method="post" class="p-6 space-y-5">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="MovementType" id="hiddenMovementType" />
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label asp-for="ItemID" class="block text-xs font-bold text-slate-700 mb-1.5">الصنف *</label>
+                    <select asp-for="ItemID" asp-items="Model.AvailableItems" required onchange="onItemChanged(this.value)" class="w-full text-sm rounded-xl border-border-light focus:border-primary focus:ring-primary py-2.5">
+                        <option value="">-- اختر الصنف --</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label asp-for="Quantity" class="block text-xs font-bold text-slate-700 mb-1.5">الكمية المطلوبة للحركة *</label>
+                    <input asp-for="Quantity" type="number" min="1" max="1000" required class="w-full text-sm rounded-xl border-border-light focus:border-primary focus:ring-primary py-2.5" />
+                </div>
+            </div>
+
+            <!-- Department Selection (For Issue or Return) -->
+            <div id="deptSection">
+                <label asp-for="DepartmentID" class="block text-xs font-bold text-slate-700 mb-1.5">القسم / الجهة المستفيدة *</label>
+                <select asp-for="DepartmentID" asp-items="Model.Departments" class="w-full text-sm rounded-xl border-border-light focus:border-primary focus:ring-primary py-2.5">
+                    <option value="">-- اختر القسم (1 إلى 48) --</option>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div id="recipientSection">
+                    <label asp-for="RecipientName" class="block text-xs font-bold text-slate-700 mb-1.5">اسم الموظف المستلم</label>
+                    <input asp-for="RecipientName" type="text" placeholder="اسم الموظف المستلم للعهدة..." class="w-full text-sm rounded-xl border-border-light focus:border-primary focus:ring-primary py-2.5" />
+                </div>
+
+                <div id="printerSection">
+                    <label asp-for="PrinterModel" class="block text-xs font-bold text-purple-800 mb-1.5">موديل الطابعة المستهدفة (للأحبار والدرامات)</label>
+                    <input asp-for="PrinterModel" type="text" placeholder="مثال: HP LaserJet Pro 400 M401" class="w-full text-sm rounded-xl border-purple-200 bg-purple-50/30 focus:border-purple-600 focus:ring-purple-600 py-2.5" />
+                </div>
+            </div>
+
+            <!-- Device Units Selection (When serialized) -->
+            @if (Model.AvailableDeviceUnits.Count > 0)
+            {
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-slate-800"><i class="bi bi-upc-scan ml-1"></i> الأجهزة المتاحة لهذا الصنف (اختياري - يحدد تلقائياً عند تركها فارغة):</span>
+                        <span class="text-[11px] text-slate-500 font-semibold">المتاح: @Model.AvailableDeviceUnits.Count قطع</span>
+                    </div>
+                    <div class="max-h-48 overflow-y-auto space-y-1.5 text-xs">
+                        @foreach (var unit in Model.AvailableDeviceUnits)
+                        {
+                            <label class="flex items-center gap-2 p-2 rounded-lg bg-white border border-slate-200 hover:bg-sky-50/50 cursor-pointer">
+                                <input type="checkbox" name="SelectedUnitIDs" value="@unit.UnitID" class="rounded text-primary focus:ring-primary" />
+                                <span class="font-mono font-bold text-slate-800">@unit.Barcode</span>
+                                @if (!string.IsNullOrWhiteSpace(unit.SerialNumber))
+                                {
+                                    <span class="text-slate-500 font-mono text-[11px]">(S/N: @unit.SerialNumber)</span>
+                                }
+                                <span class="mr-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">@unit.Status</span>
+                            </label>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label asp-for="ReferenceNumber" class="block text-xs font-bold text-slate-700 mb-1.5">رقم إذن الصرف الورقي / المرجع</label>
+                    <input asp-for="ReferenceNumber" type="text" placeholder="مثال: إذن رقم 55" class="w-full text-sm rounded-xl border-border-light focus:border-primary focus:ring-primary py-2.5" />
+                </div>
+                <div>
+                    <label asp-for="Notes" class="block text-xs font-bold text-slate-700 mb-1.5">ملاحظات الحركة</label>
+                    <input asp-for="Notes" type="text" placeholder="سبب الحركة، تقرير العطل، إلخ..." class="w-full text-sm rounded-xl border-border-light focus:border-primary focus:ring-primary py-2.5" />
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-border-light flex items-center justify-between">
+                <a href="/SuppliesTracking/Supplies/Index" class="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+                    إلغاء
+                </a>
+                <button type="submit" id="submitBtn" class="px-6 py-2.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm flex items-center gap-2 transition-colors">
+                    <i class="bi bi-check-lg text-sm"></i>
+                    <span id="submitBtnText">تنفيذ الصرف وطباعة الإذن</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+</div>
+
+@section Scripts {
+    <script>
+        function setMovementType(type) {
+            document.getElementById('hiddenMovementType').value = type;
+
+            const tabs = ['Issue', 'Return', 'Maintenance', 'Scrap'];
+            tabs.forEach(t => {
+                const btn = document.getElementById('tab-' + t);
+                if (t === type) {
+                    btn.className = "flex-1 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 bg-primary text-white shadow-sm font-bold";
+                } else {
+                    btn.className = "flex-1 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-200/60 font-semibold";
+                }
+            });
+
+            const deptSec = document.getElementById('deptSection');
+            const recSec = document.getElementById('recipientSection');
+            const submitBtn = document.getElementById('submitBtn');
+            const submitBtnText = document.getElementById('submitBtnText');
+
+            if (type === 'Issue') {
+                deptSec.style.display = 'block';
+                recSec.style.display = 'block';
+                submitBtn.className = "px-6 py-2.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm flex items-center gap-2 transition-colors";
+                submitBtnText.innerText = "تنفيذ الصرف وطباعة الإذن";
+            } else if (type === 'Return') {
+                deptSec.style.display = 'block';
+                recSec.style.display = 'none';
+                submitBtn.className = "px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-2 transition-colors";
+                submitBtnText.innerText = "تأكيد الإرجاع للمخزن";
+            } else if (type === 'Maintenance') {
+                deptSec.style.display = 'none';
+                recSec.style.display = 'none';
+                submitBtn.className = "px-6 py-2.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm flex items-center gap-2 transition-colors";
+                submitBtnText.innerText = "تأكيد التحويل للصيانة";
+            } else if (type === 'Scrap') {
+                deptSec.style.display = 'none';
+                recSec.style.display = 'none';
+                submitBtn.className = "px-6 py-2.5 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center gap-2 transition-colors";
+                submitBtnText.innerText = "تأكيد التكهين / التالف";
+            }
+        }
+
+        function onItemChanged(itemId) {
+            if (itemId) {
+                const currentType = document.getElementById('hiddenMovementType').value;
+                window.location.href = `/SuppliesTracking/Supplies/Movements?type=${currentType}&itemId=${itemId}`;
+            }
+        }
+
+        // Initialize active tab
+        document.addEventListener('DOMContentLoaded', function() {
+            setMovementType('@Model.MovementType');
+        });
+    </script>
+}
